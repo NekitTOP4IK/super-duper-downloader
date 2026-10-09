@@ -1,4 +1,4 @@
-from app.models import MediaInfo, MediaKind, Preset, Progress
+from app.models import FileInfo, JobStatus, MediaInfo, MediaKind, Preset, Progress
 
 
 def _next(outcomes):
@@ -62,3 +62,14 @@ class FakeQueue:
 
     async def probe(self, url, timeout):
         return await self.probe_handler(url)
+
+
+async def make_done_job(store, settings, batch, job, files):
+    directory = settings.data_dir / batch.id / job.id
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, content in files.items():
+        (directory / name).write_bytes(content)
+    job.status = JobStatus.DONE
+    job.files = [FileInfo(name=name, size=len(content)) for name, content in files.items()]
+    await store.save_job(job)
+    return job
