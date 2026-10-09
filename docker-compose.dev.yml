@@ -1,0 +1,43 @@
+x-backend: &backend
+  build: ./backend
+  image: sdd-backend:dev
+  env_file: .env
+  environment:
+    # Bind mounts from a Windows host don't deliver inotify events, so file watchers must poll.
+    WATCHFILES_FORCE_POLLING: "true"
+  volumes:
+    - ./backend/app:/app/app
+    - data:/data
+  depends_on:
+    - redis
+    - cobalt
+
+services:
+  api:
+    <<: *backend
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *backend
+    command: arq --watch app app.worker.main.DownloadWorker
+
+  probe-worker:
+    <<: *backend
+    command: arq --watch app app.worker.main.ProbeWorker
+
+  redis:
+    image: redis:7.4-alpine
+
+  cobalt:
+    image: ghcr.io/imputnet/cobalt:11
+    init: true
+    read_only: true
+    environment:
+      API_URL: http://cobalt:9000/
+      RATELIMIT_MAX: "1000"
+      TUNNEL_RATELIMIT_MAX: "1000"
+
+volumes:
+  data:

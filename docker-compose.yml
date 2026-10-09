@@ -1,0 +1,60 @@
+x-backend: &backend
+  build: ./backend
+  image: ${BACKEND_IMAGE:-sdd-backend:local}
+  env_file: .env
+  volumes:
+    - data:/data
+  depends_on:
+    - redis
+    - cobalt
+  restart: unless-stopped
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./frontend/dist:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    <<: *backend
+
+  worker:
+    <<: *backend
+    command: arq app.worker.main.DownloadWorker
+
+  probe-worker:
+    <<: *backend
+    command: arq app.worker.main.ProbeWorker
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
+
+  cobalt:
+    image: ghcr.io/imputnet/cobalt:11
+    init: true
+    read_only: true
+    environment:
+      API_URL: http://cobalt:9000/
+      DURATION_LIMIT: ${MAX_DURATION_SEC:-10800}
+      # All requests come from our own workers' IP, so cobalt's default 20 req/min limit would throttle us.
+      RATELIMIT_MAX: "1000"
+      TUNNEL_RATELIMIT_MAX: "1000"
+    restart: unless-stopped
+
+volumes:
+  data:
+  caddy_data:
+  caddy_config:

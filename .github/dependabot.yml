@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: daily
+    groups:
+      python-deps:
+        patterns: ["*"]
+        exclude-patterns: ["yt-dlp"]
+
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
