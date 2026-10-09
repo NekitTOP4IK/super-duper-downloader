@@ -42,3 +42,23 @@ def writes_file(name="video.mp4", content=b"data"):
         return [path]
 
     return run
+
+
+class FakeQueue:
+    def __init__(self, probe_handler=None):
+        self.downloads: list[str] = []
+        self.download_length = 0
+        self.probe_length = 0
+        self.probe_handler = probe_handler
+
+    async def enqueue_download(self, job_id):
+        self.downloads.append(job_id)
+
+    async def download_queue_length(self):
+        return self.download_length
+
+    async def probe_queue_length(self):
+        return self.probe_length
+
+    async def probe(self, url, timeout):
+        return await self.probe_handler(url)
