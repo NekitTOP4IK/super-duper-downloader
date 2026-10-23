@@ -173,27 +173,31 @@ class YtDlpEngine:
         self, url: str, opts: DownloadOptions, on_progress: ProgressCallback
     ) -> list[Path]:
         violations: list[ErrorCode] = []
+        streams = _Streams()
 
         def match_filter(info: dict[str, Any], *, incomplete: bool) -> str | None:
             duration = info.get("duration")
             if duration and duration > opts.max_duration_sec:
                 violations.append(ErrorCode.TOO_LONG)
                 return "duration limit exceeded"
+            if not incomplete:
+                # The last call, made once formats are chosen and before any of them downloads.
+                streams.plan(info)
             return None
 
         def progress_hook(status: dict[str, Any]) -> None:
             if status.get("status") != "downloading":
                 return
-            done = status.get("downloaded_bytes") or 0
+            done, total = streams.update(status)
             if done > opts.max_filesize_bytes:
                 violations.append(ErrorCode.TOO_LARGE)
                 raise EngineError(ErrorCode.TOO_LARGE)
-            total = status.get("total_bytes") or status.get("total_bytes_estimate")
+            speed = status.get("speed")
             on_progress(
                 Progress(
-                    percent=round(done * 100 / total, 1) if total else None,
-                    speed=status.get("speed"),
-                    eta=status.get("eta"),
+                    percent=min(100.0, round(done * 100 / total, 1)) if total else None,
+                    speed=speed,
+                    eta=max(0, total - done) / speed if total and speed else status.get("eta"),
                     downloaded=done,
                     total=total,
                 )
@@ -237,6 +241,32 @@ class YtDlpEngine:
         if size and size > opts.max_filesize_bytes:
             raise EngineError(ErrorCode.TOO_LARGE)
         raise EngineError(ErrorCode.EXTRACTION_FAILED, "yt-dlp finished without producing a file")
+
+
+class _Streams:
+    """Adds up the streams of one download: yt-dlp fetches video and audio one after another."""
+
+    def __init__(self) -> None:
+        self._planned: dict[str, int | None] = {}
+        self._seen: dict[str, tuple[int, int | None]] = {}
+
+    def plan(self, info: dict[str, Any]) -> None:
+        self._planned = {
+            str(fmt.get("format_id")): fmt.get("filesize") or fmt.get("filesize_approx")
+            for fmt in info.get("requested_formats") or [info]
+        }
+        self._seen = {}
+
+    def update(self, status: dict[str, Any]) -> tuple[int, int | None]:
+        current = str((status.get("info_dict") or {}).get("format_id"))
+        self._seen[current] = (
+            status.get("downloaded_bytes") or 0,
+            status.get("total_bytes") or status.get("total_bytes_estimate"),
+        )
+        sizes = [size for _, size in self._seen.values()]
+        sizes += [size for fmt, size in self._planned.items() if fmt not in self._seen]
+        done = sum(downloaded for downloaded, _ in self._seen.values())
+        return done, sum(sizes) if all(sizes) else None
 
 
 def _entry(entry: dict[str, Any] | None) -> PlaylistEntry | None:

@@ -214,6 +214,69 @@ async def test_download_returns_files_and_reports_progress(fake_ydl, opts):
     assert progress[0].percent == 50.0
 
 
+def _stream(format_id, done, total, speed=None):
+    return {
+        "status": "downloading",
+        "downloaded_bytes": done,
+        "total_bytes": total,
+        "speed": speed,
+        "info_dict": {"format_id": format_id},
+    }
+
+
+async def test_download_progress_spans_video_and_audio(fake_ydl, opts):
+    def behaviour(ydl_opts):
+        chosen = {
+            "requested_formats": [
+                {"format_id": "v", "filesize": 600},
+                {"format_id": "a", "filesize_approx": 300},
+            ]
+        }
+        assert ydl_opts["match_filter"](chosen, incomplete=False) is None
+        hook = ydl_opts["progress_hooks"][0]
+        hook(_stream("v", 300, 600, speed=100.0))
+        hook(_stream("v", 600, 600))
+        hook(_stream("a", 150, 300))
+        hook(_stream("a", 300, 300))
+        path = opts.dest_dir / "clip.mp4"
+        path.write_bytes(b"x")
+        return {"requested_downloads": [{"filepath": str(path)}]}
+
+    fake_ydl.behaviour = behaviour
+    progress = []
+    await YtDlpEngine().download("https://v.example", opts, progress.append)
+    assert [p.percent for p in progress] == [33.3, 66.7, 83.3, 100.0]
+    assert {p.total for p in progress} == {900}
+    assert [p.downloaded for p in progress] == [300, 600, 750, 900]
+    assert progress[0].eta == 6.0
+
+
+async def test_download_size_limit_counts_all_streams(fake_ydl, opts):
+    def behaviour(ydl_opts):
+        ydl_opts["progress_hooks"][0](_stream("v", 700, 700))
+        ydl_opts["progress_hooks"][0](_stream("a", 400, 400))
+        return {}
+
+    fake_ydl.behaviour = behaviour
+    with pytest.raises(EngineError) as info:
+        await YtDlpEngine().download("https://v.example", opts, lambda p: None)
+    assert info.value.code is ErrorCode.TOO_LARGE
+
+
+async def test_download_percent_never_exceeds_100(fake_ydl, opts):
+    def behaviour(ydl_opts):
+        ydl_opts["progress_hooks"][0](
+            {"status": "downloading", "downloaded_bytes": 900, "total_bytes_estimate": 800}
+        )
+        return {}
+
+    fake_ydl.behaviour = behaviour
+    progress = []
+    with pytest.raises(EngineError):
+        await YtDlpEngine().download("https://v.example", opts, progress.append)
+    assert progress[0].percent == 100.0
+
+
 async def test_download_rejects_long_media(fake_ydl, opts):
     def behaviour(ydl_opts):
         assert ydl_opts["match_filter"]({"duration": 999}, incomplete=False) is not None
