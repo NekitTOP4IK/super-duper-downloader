@@ -19,13 +19,14 @@ services:
     ports:
       - "8000:8000"
 
+  # arq --watch restarts the worker inside the same process, so edited modules would never load.
   worker:
     <<: *backend
-    command: arq --watch app app.worker.main.DownloadWorker
+    command: watchfiles --filter python "arq app.worker.main.DownloadWorker" app
 
   probe-worker:
     <<: *backend
-    command: arq --watch app app.worker.main.ProbeWorker
+    command: watchfiles --filter python "arq app.worker.main.ProbeWorker" app
 
   redis:
     image: redis:7.4-alpine
