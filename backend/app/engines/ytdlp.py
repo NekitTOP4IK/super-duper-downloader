@@ -105,7 +105,8 @@ def available_presets(info: dict[str, Any]) -> list[Preset]:
         return [Preset.AUDIO]
     max_height = max((f.get("height") or 0 for f in video), default=0)
     heights = [preset for preset, height in _HEIGHT_PRESETS if max_height >= height]
-    return [Preset.BEST, *heights, Preset.AUDIO]
+    audio = [Preset.AUDIO] if any(f.get("acodec") != "none" for f in formats) else []
+    return [Preset.BEST, *heights, *audio]
 
 
 def info_to_media(url: str, info: dict[str, Any], playlist_limit: int) -> MediaInfo:

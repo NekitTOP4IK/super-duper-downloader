@@ -99,6 +99,7 @@ def test_merged_streams_land_in_a_common_container(video, audio, expected):
             [B, P1080, P720, P480, A],
         ),
         ({"formats": [{"vcodec": "avc1", "height": 480}]}, [B, P480, A]),
+        ({"formats": [{"vcodec": "avc1", "acodec": "none", "height": 480}]}, [B, P480]),
         ({"formats": [{"vcodec": "none", "acodec": "opus"}]}, [A]),
         ({"vcodec": None, "ext": "mp4"}, [B, A]),
     ],
