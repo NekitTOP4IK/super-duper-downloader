@@ -50,7 +50,12 @@ _ERROR_PATTERNS = (
     ),
     (
         ErrorCode.GEO_BLOCKED,
-        ("not available in your country", "geo restriction", "geo-restricted"),
+        (
+            "not available in your country",
+            "geo restriction",
+            "geo-restricted",
+            "ip address is blocked",
+        ),
     ),
     (
         ErrorCode.UNAVAILABLE,

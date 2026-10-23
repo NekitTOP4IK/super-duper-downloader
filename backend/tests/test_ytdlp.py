@@ -162,6 +162,10 @@ def test_info_to_media_playlist_respects_limit():
             "ERROR: [youtube] x: Video unavailable. YouTube is requiring a captcha challenge",
             ErrorCode.BLOCKED,
         ),
+        (
+            "ERROR: [TikTok] 1: Your IP address is blocked from accessing this post",
+            ErrorCode.GEO_BLOCKED,
+        ),
         ("ERROR: [x] something odd happened", ErrorCode.EXTRACTION_FAILED),
     ],
 )
@@ -179,6 +183,14 @@ def test_map_ytdlp_error_by_exception_type():
 def test_map_ytdlp_error_cleans_message():
     err = map_ytdlp_error(DownloadError("\x1b[0;31mERROR:\x1b[0m [youtube] x: Video unavailable"))
     assert err.message == "[youtube] x: Video unavailable"
+
+
+def test_ytdlp_can_impersonate_a_browser():
+    # TikTok and others answer clients that do not look like a browser with a bot challenge.
+    from yt_dlp.networking.impersonate import ImpersonateTarget
+
+    with YoutubeDL({"quiet": True}) as ydl:
+        assert ydl._impersonate_target_available(ImpersonateTarget())
 
 
 class FakeYDL:

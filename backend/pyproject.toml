@@ -9,7 +9,7 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.32",
     "uvicorn[standard]>=0.54.0",
-    "yt-dlp[default]>=2026.8.19",
+    "yt-dlp[default,curl-cffi]>=2026.8.19",
     "zipstream-ng>=1.9.3",
 ]
 

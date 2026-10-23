@@ -80,6 +80,10 @@ anything a user URL leads to, redirects included. A few things are outside that 
   the proxy decides where requests go. Use one that cannot reach your internal network.
 - **ffmpeg.** When yt-dlp hands a stream to ffmpeg, ffmpeg connects on its own and is
   not checked.
+- **Browser impersonation.** TikTok and some other sites only answer clients that look
+  like a browser, so yt-dlp sends those requests through curl_cffi, which connects
+  outside Python and is not checked either. Only extractors of specific sites do this,
+  for their own hosts, but curl follows up to five redirects from there on its own.
 
 ## Development
 
