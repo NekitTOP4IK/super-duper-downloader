@@ -1,4 +1,5 @@
 import pytest
+from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError, GeoRestrictedError, UnsupportedError
 
 from app.core.config import Settings
@@ -7,6 +8,7 @@ from app.engines import ytdlp as ytdlp_module
 from app.engines.base import DownloadOptions
 from app.engines.factory import build_router
 from app.engines.ytdlp import (
+    FORMAT_SORT,
     YtDlpEngine,
     available_presets,
     format_for,
@@ -22,6 +24,49 @@ def test_format_for():
     assert format_for(P720) == "bv*[height<=720]+ba/b[height<=720]"
     assert format_for(A) == "ba/b"
     assert format_for(B) == "bv*+ba/b"
+
+
+def _format(format_id, vcodec, acodec, height, ext):
+    return {
+        "format_id": format_id,
+        "url": f"https://cdn.example/{format_id}",
+        "vcodec": vcodec,
+        "acodec": acodec,
+        "height": height,
+        "ext": ext,
+        "protocol": "https",
+    }
+
+
+_FORMATS = [
+    _format("av1-2160", "av01.0.12M.08", "none", 2160, "mp4"),
+    _format("vp9-2160", "vp9", "none", 2160, "webm"),
+    _format("av1-1080", "av01.0.08M.08", "none", 1080, "mp4"),
+    _format("vp9-1080", "vp9", "none", 1080, "webm"),
+    _format("avc-1080", "avc1.640028", "none", 1080, "mp4"),
+    _format("opus", "none", "opus", None, "webm"),
+    _format("aac", "none", "mp4a.40.2", None, "m4a"),
+]
+
+
+@pytest.mark.parametrize(
+    "preset, expected",
+    [(B, "vp9-2160+aac"), (P1080, "avc-1080+aac"), (A, "aac")],
+)
+def test_format_sort_prefers_compatible_codecs_without_losing_resolution(preset, expected):
+    ydl = YoutubeDL({"quiet": True, "format": format_for(preset), "format_sort": FORMAT_SORT})
+    info = ydl.process_ie_result(
+        {
+            "id": "x",
+            "title": "t",
+            "formats": [dict(f) for f in _FORMATS],
+            "extractor": "t",
+            "extractor_key": "T",
+            "webpage_url": "https://site.example/x",
+        },
+        download=False,
+    )
+    assert info["format_id"] == expected
 
 
 @pytest.mark.parametrize(

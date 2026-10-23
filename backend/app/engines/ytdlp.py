@@ -19,6 +19,8 @@ PRESET_FORMATS = {
     Preset.AUDIO: "ba/b",
 }
 _HEIGHT_PRESETS = ((Preset.P1080, 1080), (Preset.P720, 720), (Preset.P480, 480))
+# Within one resolution prefer H.264 + AAC: AV1 and Opus still fail on older phones and TVs.
+FORMAT_SORT = ["res", "vcodec:h264", "acodec:aac", "ext:mp4:m4a"]
 
 _ERROR_PATTERNS = (
     (ErrorCode.FORBIDDEN, (BLOCKED_MESSAGE,)),
@@ -200,7 +202,7 @@ class YtDlpEngine:
         ydl_opts = {
             **self._base_opts(),
             "format": format_for(opts.preset),
-            "format_sort": ["res", "ext:mp4:m4a"],
+            "format_sort": FORMAT_SORT,
             "merge_output_format": "mp4/mkv",
             "outtmpl": {"default": "%(title).150B [%(id)s].%(ext)s"},
             "paths": {"home": str(opts.dest_dir), "temp": str(opts.dest_dir / ".part")},
