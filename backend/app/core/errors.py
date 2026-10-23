@@ -15,6 +15,8 @@ class ErrorCode(StrEnum):
     INTERNAL = "INTERNAL"
 
 
+# "Login required" or "deleted" from one engine often only means its way into the site failed,
+# so the next engine still gets a try.
 FALLBACK_CODES = frozenset(
     {
         ErrorCode.UNSUPPORTED,
@@ -22,6 +24,8 @@ FALLBACK_CODES = frozenset(
         ErrorCode.EXTRACTION_FAILED,
         ErrorCode.NETWORK,
         ErrorCode.UNAVAILABLE,
+        ErrorCode.PRIVATE,
+        ErrorCode.GEO_BLOCKED,
     }
 )
 RETRY_CODES = frozenset({ErrorCode.NETWORK})

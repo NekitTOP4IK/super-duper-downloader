@@ -33,7 +33,15 @@ async def test_probe_uses_first_successful_engine():
 
 
 @pytest.mark.parametrize(
-    "code", [ErrorCode.UNSUPPORTED, ErrorCode.BLOCKED, ErrorCode.EXTRACTION_FAILED]
+    "code",
+    [
+        ErrorCode.UNSUPPORTED,
+        ErrorCode.BLOCKED,
+        ErrorCode.EXTRACTION_FAILED,
+        ErrorCode.UNAVAILABLE,
+        ErrorCode.PRIVATE,
+        ErrorCode.GEO_BLOCKED,
+    ],
 )
 async def test_falls_back_on_recoverable_codes(code):
     first = FakeEngine("a", probe=[EngineError(code)])
@@ -42,10 +50,7 @@ async def test_falls_back_on_recoverable_codes(code):
     assert second.probe_calls == [URL]
 
 
-@pytest.mark.parametrize(
-    "code",
-    [ErrorCode.PRIVATE, ErrorCode.GEO_BLOCKED, ErrorCode.TOO_LONG, ErrorCode.TOO_LARGE],
-)
+@pytest.mark.parametrize("code", [ErrorCode.TOO_LONG, ErrorCode.TOO_LARGE, ErrorCode.FORBIDDEN])
 async def test_stops_on_final_codes(code):
     first = FakeEngine("a", probe=[EngineError(code)])
     second = FakeEngine("b", probe=[single()])
@@ -102,6 +107,26 @@ async def test_all_engines_failing_reports_the_first_specific_error():
         await make_router(first, second, third, fourth).probe(URL)
     assert info.value.code is ErrorCode.BLOCKED
     assert info.value.message == "login required"
+
+
+@pytest.mark.parametrize(
+    "first_code, second_code, expected",
+    [
+        (ErrorCode.EXTRACTION_FAILED, ErrorCode.UNAVAILABLE, ErrorCode.UNAVAILABLE),
+        (ErrorCode.NETWORK, ErrorCode.PRIVATE, ErrorCode.PRIVATE),
+        (ErrorCode.BLOCKED, ErrorCode.UNAVAILABLE, ErrorCode.BLOCKED),
+        (ErrorCode.EXTRACTION_FAILED, ErrorCode.NETWORK, ErrorCode.EXTRACTION_FAILED),
+    ],
+)
+async def test_all_engines_failing_reports_the_most_telling_reason(
+    first_code, second_code, expected
+):
+    first = FakeEngine("a", probe=[EngineError(first_code)])
+    second = FakeEngine("b", probe=[EngineError(second_code)])
+    router = EngineRouter([first, second], network_retries=0)
+    with pytest.raises(EngineError) as info:
+        await router.probe(URL)
+    assert info.value.code is expected
 
 
 async def test_all_engines_unsupported_stays_unsupported():

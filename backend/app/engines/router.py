@@ -12,6 +12,15 @@ log = logging.getLogger(__name__)
 
 Sleep = Callable[[float], Awaitable[None]]
 
+# When every engine fails, the user sees the most specific reason, and among equally specific
+# ones the reason of the earliest engine. Generic engines answer UNSUPPORTED or
+# EXTRACTION_FAILED for nearly anything, which would hide "login required" or "deleted".
+_VAGUENESS = {
+    ErrorCode.NETWORK: 1,
+    ErrorCode.EXTRACTION_FAILED: 1,
+    ErrorCode.UNSUPPORTED: 2,
+}
+
 
 class EngineRouter:
     def __init__(
@@ -58,9 +67,7 @@ class EngineRouter:
                 errors.append(exc)
                 if exc.code not in FALLBACK_CODES:
                     raise
-        # Generic fallbacks answer UNSUPPORTED for nearly anything, which would hide the real
-        # reason ("login required", "rate limited") reported by the engine that knew the site.
-        raise next((exc for exc in errors if exc.code is not ErrorCode.UNSUPPORTED), errors[-1])
+        raise min(errors, key=lambda exc: _VAGUENESS.get(exc.code, 0))
 
     async def _attempt[T](self, engine: Engine, op: Callable[[Engine], Awaitable[T]]) -> T:
         attempt = 0

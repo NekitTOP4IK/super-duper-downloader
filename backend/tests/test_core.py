@@ -24,13 +24,12 @@ def test_env_overrides(monkeypatch):
 
 
 def test_fallback_and_retry_codes():
-    assert {
-        ErrorCode.UNSUPPORTED,
-        ErrorCode.BLOCKED,
-        ErrorCode.EXTRACTION_FAILED,
-        ErrorCode.NETWORK,
-        ErrorCode.UNAVAILABLE,
-    } == FALLBACK_CODES
+    assert set(ErrorCode) - FALLBACK_CODES == {
+        ErrorCode.TOO_LONG,
+        ErrorCode.TOO_LARGE,
+        ErrorCode.FORBIDDEN,
+        ErrorCode.INTERNAL,
+    }
     assert {ErrorCode.NETWORK} == RETRY_CODES
 
 
