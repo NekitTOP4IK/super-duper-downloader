@@ -204,20 +204,11 @@ class YtDlpEngine:
         def progress_hook(status: dict[str, Any]) -> None:
             if status.get("status") != "downloading":
                 return
-            done, total = streams.update(status)
-            if done > opts.max_filesize_bytes:
+            progress = streams.update(status)
+            if (progress.downloaded or 0) > opts.max_filesize_bytes:
                 violations.append(ErrorCode.TOO_LARGE)
                 raise EngineError(ErrorCode.TOO_LARGE)
-            speed = status.get("speed")
-            on_progress(
-                Progress(
-                    percent=min(100.0, round(done * 100 / total, 1)) if total else None,
-                    speed=speed,
-                    eta=max(0, total - done) / speed if total and speed else status.get("eta"),
-                    downloaded=done,
-                    total=total,
-                )
-            )
+            on_progress(progress)
 
         def postprocessor_hook(status: dict[str, Any]) -> None:
             if status.get("status") == "started":
@@ -265,24 +256,42 @@ class _Streams:
     def __init__(self) -> None:
         self._planned: dict[str, int | None] = {}
         self._seen: dict[str, tuple[int, int | None]] = {}
+        self._percent = 0.0
 
     def plan(self, info: dict[str, Any]) -> None:
         self._planned = {
-            str(fmt.get("format_id")): fmt.get("filesize") or fmt.get("filesize_approx")
+            str(fmt.get("format_id")): _size(fmt.get("filesize") or fmt.get("filesize_approx"))
             for fmt in info.get("requested_formats") or [info]
         }
         self._seen = {}
+        self._percent = 0.0
 
-    def update(self, status: dict[str, Any]) -> tuple[int, int | None]:
+    def update(self, status: dict[str, Any]) -> Progress:
         current = str((status.get("info_dict") or {}).get("format_id"))
         self._seen[current] = (
-            status.get("downloaded_bytes") or 0,
-            status.get("total_bytes") or status.get("total_bytes_estimate"),
+            _size(status.get("downloaded_bytes")) or 0,
+            _size(status.get("total_bytes") or status.get("total_bytes_estimate")),
         )
         sizes = [size for _, size in self._seen.values()]
         sizes += [size for fmt, size in self._planned.items() if fmt not in self._seen]
         done = sum(downloaded for downloaded, _ in self._seen.values())
-        return done, sum(sizes) if all(sizes) else None
+        total = sum(sizes) if all(sizes) else None
+        speed = status.get("speed")
+        if total:
+            # Fragmented streams only have a size estimate, which shifts as fragments arrive.
+            self._percent = max(self._percent, min(100.0, round(done * 100 / total, 1)))
+        return Progress(
+            percent=self._percent if total else None,
+            speed=speed,
+            eta=max(0, total - done) / speed if total and speed else status.get("eta"),
+            downloaded=done,
+            total=total,
+        )
+
+
+def _size(value: float | None) -> int | None:
+    # Estimates for HLS and approximate format sizes come as floats.
+    return int(value) if value else None
 
 
 def _entry(entry: dict[str, Any] | None) -> PlaylistEntry | None:

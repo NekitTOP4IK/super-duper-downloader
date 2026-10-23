@@ -49,23 +49,27 @@ _FORMATS = [
 ]
 
 
+def _select(formats, **params):
+    with YoutubeDL({"quiet": True, **params}) as ydl:
+        return ydl.process_ie_result(
+            {
+                "id": "x",
+                "title": "t",
+                "formats": [dict(f) for f in formats],
+                "extractor": "t",
+                "extractor_key": "T",
+                "webpage_url": "https://site.example/x",
+            },
+            download=False,
+        )
+
+
 @pytest.mark.parametrize(
     "preset, expected",
     [(B, "vp9-2160+aac"), (P1080, "avc-1080+aac"), (A, "aac")],
 )
 def test_format_sort_prefers_compatible_codecs_without_losing_resolution(preset, expected):
-    ydl = YoutubeDL({"quiet": True, "format": format_for(preset), "format_sort": FORMAT_SORT})
-    info = ydl.process_ie_result(
-        {
-            "id": "x",
-            "title": "t",
-            "formats": [dict(f) for f in _FORMATS],
-            "extractor": "t",
-            "extractor_key": "T",
-            "webpage_url": "https://site.example/x",
-        },
-        download=False,
-    )
+    info = _select(_FORMATS, format=format_for(preset), format_sort=FORMAT_SORT)
     assert info["format_id"] == expected
 
 
@@ -277,6 +281,43 @@ async def test_download_progress_spans_video_and_audio(fake_ydl, opts):
     assert {p.total for p in progress} == {900}
     assert [p.downloaded for p in progress] == [300, 600, 750, 900]
     assert progress[0].eta == 6.0
+
+
+async def test_download_progress_accepts_estimated_sizes(fake_ydl, opts):
+    def behaviour(ydl_opts):
+        chosen = {
+            "requested_formats": [
+                {"format_id": "v", "filesize_approx": 600.5},
+                {"format_id": "a", "filesize_approx": 300.25},
+            ]
+        }
+        ydl_opts["match_filter"](chosen, incomplete=False)
+        ydl_opts["progress_hooks"][0]({**_stream("v", 300, None), "total_bytes_estimate": 600.75})
+        path = opts.dest_dir / "clip.mp4"
+        path.write_bytes(b"x")
+        return {"requested_downloads": [{"filepath": str(path)}]}
+
+    fake_ydl.behaviour = behaviour
+    progress = []
+    await YtDlpEngine().download("https://v.example", opts, progress.append)
+    assert progress[0].total == 900
+    assert progress[0].downloaded == 300
+
+
+async def test_download_percent_does_not_go_back_when_estimate_grows(fake_ydl, opts):
+    def behaviour(ydl_opts):
+        hook = ydl_opts["progress_hooks"][0]
+        hook({**_stream("v", 400, None), "total_bytes_estimate": 800})
+        hook({**_stream("v", 450, None), "total_bytes_estimate": 1000})
+        hook({**_stream("v", 900, None), "total_bytes_estimate": 1000})
+        path = opts.dest_dir / "clip.mp4"
+        path.write_bytes(b"x")
+        return {"requested_downloads": [{"filepath": str(path)}]}
+
+    fake_ydl.behaviour = behaviour
+    progress = []
+    await YtDlpEngine().download("https://v.example", opts, progress.append)
+    assert [p.percent for p in progress] == [50.0, 50.0, 90.0]
 
 
 async def test_download_size_limit_counts_all_streams(fake_ydl, opts):
