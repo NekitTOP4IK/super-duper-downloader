@@ -12,18 +12,15 @@ from app.core.errors import EngineError, ErrorCode
 from app.engines.base import DownloadOptions, ProgressCallback, is_http_url
 from app.models import MediaInfo, MediaKind, PlaylistEntry, Preset, Progress
 
-PRESET_FORMATS = {
-    Preset.BEST: "bv*+ba/b",
-    Preset.P1080: "bv*[height<=1080]+ba/b[height<=1080]",
-    Preset.P720: "bv*[height<=720]+ba/b[height<=720]",
-    Preset.P480: "bv*[height<=480]+ba/b[height<=480]",
-    Preset.AUDIO: "ba/b",
-}
-_HEIGHT_PRESETS = ((Preset.P1080, 1080), (Preset.P720, 720), (Preset.P480, 480))
+_HEIGHTS = {Preset.P1080: 1080, Preset.P720: 720, Preset.P480: 480}
 # Within one resolution prefer H.264 + AAC: AV1 and Opus still fail on older phones and TVs.
 # Then a whole file over HLS fragments: YouTube offers both for one stream, and the whole file
 # has its size known up front and downloaded about twice as fast in a test.
-FORMAT_SORT = ["res", "vcodec:h264", "acodec:aac", "proto", "ext:mp4:m4a"]
+_COMPATIBLE = ["vcodec:h264", "acodec:aac", "proto", "ext:mp4:m4a"]
+# Where a site has no separate audio, the sound comes out of the lightest video that has it.
+_AUDIO_SORT = ["acodec:aac", "abr", "+size", "+res", "proto", "ext:mp4:m4a"]
+# Copies the sound out of a video without re-encoding it, and leaves audio files as they are.
+EXTRACT_AUDIO = {"key": "FFmpegExtractAudio", "preferredcodec": "best"}
 # With mkv listed, yt-dlp picks it whenever a stream's codec is unknown, as with X's HLS audio.
 # ffmpeg muxes every common codec into mp4, so mp4 is the fallback instead.
 MERGE_FORMAT = "webm/mp4"
@@ -81,6 +78,8 @@ _ERROR_PATTERNS = (
             "http error 404",
         ),
     ),
+    # What ffmpeg leaves when asked for the sound of a video that has none.
+    (ErrorCode.NO_AUDIO, ("unable to obtain file audio codec",)),
     (ErrorCode.UNSUPPORTED, ("unsupported url",)),
     (
         ErrorCode.NETWORK,
@@ -97,8 +96,18 @@ _ERROR_PATTERNS = (
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
-def format_for(preset: Preset) -> str:
-    return PRESET_FORMATS[preset]
+def format_options(preset: Preset) -> dict[str, Any]:
+    """What yt-dlp needs to pick the streams of a preset."""
+    if preset is Preset.AUDIO:
+        return {"format": "ba/b", "format_sort": _AUDIO_SORT}
+    # A height is measured on the shorter side, as yt-dlp's res is, so that "720" of a vertical
+    # video means 720x1280. Where nothing is that small, the closest larger stream stands in.
+    height = _HEIGHTS.get(preset)
+    return {
+        "format": "bv*+ba/b",
+        "format_sort": [f"res:{height}" if height else "res", *_COMPATIBLE],
+        "merge_output_format": MERGE_FORMAT,
+    }
 
 
 def available_presets(info: dict[str, Any]) -> list[Preset]:
@@ -106,10 +115,19 @@ def available_presets(info: dict[str, Any]) -> list[Preset]:
     video = [f for f in formats if f.get("vcodec") != "none"]
     if not video:
         return [Preset.AUDIO]
-    max_height = max((f.get("height") or 0 for f in video), default=0)
-    heights = [preset for preset, height in _HEIGHT_PRESETS if max_height >= height]
+    sides = [_shorter_side(fmt) for fmt in video]
+    # A height is offered only with a stream within it, so "720" never brings a 1080p file.
+    heights = [
+        preset
+        for preset, height in _HEIGHTS.items()
+        if max(sides) >= height and any(0 < side <= height for side in sides)
+    ]
     audio = [Preset.AUDIO] if any(f.get("acodec") != "none" for f in formats) else []
     return [Preset.BEST, *heights, *audio]
+
+
+def _shorter_side(fmt: dict[str, Any]) -> int:
+    return min(filter(None, (fmt.get("width"), fmt.get("height"))), default=0)
 
 
 def info_to_media(url: str, info: dict[str, Any], playlist_limit: int) -> MediaInfo:
@@ -162,15 +180,15 @@ def preset_sizes(items: list[dict[str, Any]], presets: list[Preset]) -> dict[Pre
     sizes = {}
     for preset in presets:
         with YoutubeDL(
-            {"quiet": True, "no_warnings": True, "check_formats": False, **_selection(preset)}
+            {"quiet": True, "no_warnings": True, "check_formats": False, **format_options(preset)}
         ) as ydl:
-            parts = [_selected_size(ydl, item) for item in items]
+            parts = [_selected_size(ydl, item, preset is Preset.AUDIO) for item in items]
         if parts and all(parts):
             sizes[preset] = sum(parts)
     return sizes
 
 
-def _selected_size(ydl: YoutubeDL, info: dict[str, Any]) -> int | None:
+def _selected_size(ydl: YoutubeDL, info: dict[str, Any], audio: bool) -> int | None:
     # The probe already picked formats once; a pick of a single format would keep its list.
     fresh = {key: value for key, value in info.items() if key != "requested_formats"}
     try:
@@ -178,7 +196,7 @@ def _selected_size(ydl: YoutubeDL, info: dict[str, Any]) -> int | None:
     except Exception:
         # A size is only a hint and must not cost the preview, whatever the extractor returned.
         return None
-    sizes = [_stream_size(fmt, chosen.get("duration")) for fmt in _chosen_streams(chosen)]
+    sizes = [_stream_size(fmt, chosen.get("duration"), audio) for fmt in _chosen_streams(chosen)]
     return sum(sizes) if all(sizes) else None
 
 
@@ -190,7 +208,10 @@ def _chosen_streams(chosen: dict[str, Any]) -> list[dict[str, Any]]:
     return [by_id.get(chosen.get("format_id"), chosen)]
 
 
-def _stream_size(fmt: dict[str, Any], duration: float | None) -> int | None:
+def _stream_size(fmt: dict[str, Any], duration: float | None, audio: bool) -> int | None:
+    if audio and fmt.get("vcodec") != "none":
+        # Only the sound of this video is kept.
+        return _from_bitrate(fmt.get("abr"), duration)
     if size := fmt.get("filesize") or fmt.get("filesize_approx"):
         return int(size)
     # HLS playlists state a bitrate and no size.
@@ -199,14 +220,6 @@ def _stream_size(fmt: dict[str, Any], duration: float | None) -> int | None:
 
 def _from_bitrate(kbps: float | None, duration: float | None) -> int | None:
     return int(kbps * 1000 / 8 * duration) if kbps and duration else None
-
-
-def _selection(preset: Preset) -> dict[str, Any]:
-    return {
-        "format": format_for(preset),
-        "format_sort": FORMAT_SORT,
-        "merge_output_format": MERGE_FORMAT,
-    }
 
 
 def map_ytdlp_error(exc: BaseException) -> EngineError:
@@ -305,7 +318,8 @@ class YtDlpEngine:
 
         ydl_opts = {
             **self._base_opts(),
-            **_selection(opts.preset),
+            **format_options(opts.preset),
+            "postprocessors": [EXTRACT_AUDIO] if opts.preset is Preset.AUDIO else [],
             # Ids of plain file links are their whole file name, which can fill the 255-byte limit.
             "outtmpl": {"default": "%(title).150B [%(id).64B].%(ext)s"},
             "paths": {"home": str(opts.dest_dir), "temp": str(opts.dest_dir / ".part")},

@@ -8,23 +8,16 @@ from app.engines import ytdlp as ytdlp_module
 from app.engines.base import DownloadOptions
 from app.engines.factory import build_router
 from app.engines.ytdlp import (
-    FORMAT_SORT,
-    MERGE_FORMAT,
+    EXTRACT_AUDIO,
     YtDlpEngine,
     available_presets,
-    format_for,
+    format_options,
     info_to_media,
     map_ytdlp_error,
 )
 from app.models import MediaKind, Preset
 
 B, P1080, P720, P480, A = Preset.BEST, Preset.P1080, Preset.P720, Preset.P480, Preset.AUDIO
-
-
-def test_format_for():
-    assert format_for(P720) == "bv*[height<=720]+ba/b[height<=720]"
-    assert format_for(A) == "ba/b"
-    assert format_for(B) == "bv*+ba/b"
 
 
 def _format(format_id, vcodec, acodec, height, ext, protocol="https"):
@@ -70,7 +63,7 @@ def _select(formats, **params):
     [(B, "vp9-2160+aac"), (P1080, "avc-1080+aac"), (A, "aac")],
 )
 def test_format_sort_prefers_compatible_codecs_without_losing_resolution(preset, expected):
-    info = _select(_FORMATS, format=format_for(preset), format_sort=FORMAT_SORT)
+    info = _select(_FORMATS, **format_options(preset))
     assert info["format_id"] == expected
 
 
@@ -80,8 +73,29 @@ def test_format_sort_prefers_a_whole_file_to_fragments_of_the_same_quality():
         _format("https-1440", "vp9", "none", 1440, "webm"),
         _format("aac", "none", "mp4a.40.2", None, "m4a"),
     ]
-    info = _select(formats, format=format_for(B), format_sort=FORMAT_SORT)
+    info = _select(formats, **format_options(B))
     assert info["format_id"] == "https-1440+aac"
+
+
+def test_height_presets_measure_the_shorter_side_of_a_vertical_video():
+    formats = [
+        {**_format("hevc-1080", "hevc", "aac", 1920, "mp4"), "width": 1080},
+        {**_format("avc-720", "avc1.64001F", "aac", 1280, "mp4"), "width": 720},
+        {**_format("hevc-576", "hevc", "aac", 1024, "mp4"), "width": 576},
+    ]
+    picked = {
+        preset: _select(formats, **format_options(preset))["format_id"]
+        for preset in (B, P1080, P720, P480)
+    }
+    assert picked == {B: "hevc-1080", P1080: "hevc-1080", P720: "avc-720", P480: "hevc-576"}
+
+
+def test_audio_comes_from_the_lightest_video_when_the_site_has_no_separate_sound():
+    formats = [
+        _format("hls-1080", "avc1.640028", "mp4a.40.2", 1080, "mp4"),
+        _format("hls-360", "avc1.4D401E", "mp4a.40.2", 360, "mp4"),
+    ]
+    assert _select(formats, **format_options(A))["format_id"] == "hls-360"
 
 
 @pytest.mark.parametrize(
@@ -97,7 +111,7 @@ def test_merged_streams_land_in_a_common_container(video, audio, expected):
         _format("v", video[0], "none", 720, video[1]),
         _format("a", "none", audio[0], None, audio[1]),
     ]
-    info = _select(formats, format=format_for(B), merge_output_format=MERGE_FORMAT)
+    info = _select(formats, **format_options(B))
     assert info["ext"] == expected
 
 
@@ -105,10 +119,20 @@ def test_merged_streams_land_in_a_common_container(video, audio, expected):
     "info, expected",
     [
         (
-            {"formats": [{"vcodec": "avc1", "height": 1080}, {"vcodec": "none"}]},
+            {"formats": [{"vcodec": "avc1", "height": h} for h in (1080, 720, 360)]},
             [B, P1080, P720, P480, A],
         ),
+        ({"formats": [{"vcodec": "avc1", "height": 1080}, {"vcodec": "none"}]}, [B, P1080, A]),
         ({"formats": [{"vcodec": "avc1", "height": 480}]}, [B, P480, A]),
+        (
+            {
+                "formats": [
+                    {"vcodec": "hevc", "width": w, "height": w * 16 // 9} for w in (1080, 720)
+                ]
+            },
+            [B, P1080, P720, A],
+        ),
+        ({"formats": [{"vcodec": "hevc", "width": 576, "height": 1024}]}, [B, A]),
         ({"formats": [{"vcodec": "avc1", "acodec": "none", "height": 480}]}, [B, P480]),
         ({"formats": [{"vcodec": "none", "acodec": "opus"}]}, [A]),
         ({"vcodec": None, "ext": "mp4"}, [B, A]),
@@ -130,7 +154,7 @@ def test_info_to_media_single():
     assert media.kind is MediaKind.SINGLE
     assert (media.title, media.duration, media.uploader) == ("T", 12.5, "U")
     assert media.thumbnail == "https://i.example/l.jpg"
-    assert media.presets == [B, P720, P480, A]
+    assert media.presets == [B, P720, A]
 
 
 def _video(formats, video_id="x", duration=10):
@@ -163,7 +187,7 @@ def test_info_to_media_sizes_each_preset_by_the_streams_it_takes():
 
 
 def test_info_to_media_sizes_an_already_selected_video():
-    media = info_to_media("https://v.example", _select(_SIZED, format=format_for(B)), 50)
+    media = info_to_media("https://v.example", _select(_SIZED, **format_options(B)), 50)
     assert media.sizes[A] == 100
 
 
@@ -172,8 +196,15 @@ def test_info_to_media_does_not_size_a_stream_by_the_one_picked_before():
         _sized("mp3", "none", "mp3", None, "mp3"),
         _sized("v", "h264", "aac", 1080, "mp4", filesize=6000),
     ]
-    media = info_to_media("https://v.example", _select(formats, format=format_for(B)), 50)
+    media = info_to_media("https://v.example", _select(formats, **format_options(B)), 50)
     assert media.sizes == {B: 6000, P1080: 6000}
+
+
+def test_info_to_media_sizes_sound_cut_from_a_video_by_its_audio_bitrate():
+    with_bitrate = [_sized("v", "avc1.64001F", "mp4a.40.2", 720, "mp4", filesize=5000, abr=128)]
+    without = [_sized("v", "avc1.64001F", "mp4a.40.2", 720, "mp4", filesize=5000)]
+    assert info_to_media("https://v.example", _video(with_bitrate), 50).sizes[A] == 160_000
+    assert A not in info_to_media("https://v.example", _video(without), 50).sizes
 
 
 def test_info_to_media_estimates_size_from_bitrate():
@@ -199,8 +230,8 @@ def test_info_to_media_sizes_a_post_by_all_its_videos():
         "_type": "playlist",
         "title": "Post",
         "entries": [
-            _select(_SIZED[1:], format=format_for(B)),
-            _select(_SIZED, format=format_for(B)),
+            _select(_SIZED[1:], **format_options(B)),
+            _select(_SIZED, **format_options(B)),
         ],
     }
     media = info_to_media("https://site.example/p/1", info, 50)
@@ -254,7 +285,7 @@ def test_info_to_media_post_with_several_videos_is_one_item():
     assert media.kind is MediaKind.SINGLE
     assert (media.title, media.uploader, media.count) == ("Post", "U", 2)
     assert media.thumbnail == "https://i.example/1.jpg"
-    assert media.presets == [B, P1080, P720, P480, A]
+    assert media.presets == [B, P1080, P720, A]
     assert media.entries == []
 
 
@@ -275,6 +306,10 @@ def test_info_to_media_post_with_several_videos_is_one_item():
             ErrorCode.BLOCKED,
         ),
         ("ERROR: [generic] Unsupported URL: https://example.com", ErrorCode.UNSUPPORTED),
+        (
+            "ERROR: Postprocessing: WARNING: unable to obtain file audio codec with ffprobe",
+            ErrorCode.NO_AUDIO,
+        ),
         ("ERROR: Unable to download webpage: <urlopen error timed out>", ErrorCode.NETWORK),
         ("ERROR: [youtube] x: Video unavailable", ErrorCode.UNAVAILABLE),
         (
@@ -584,6 +619,16 @@ async def test_download_maps_ytdlp_errors(fake_ydl, opts):
     with pytest.raises(EngineError) as info:
         await YtDlpEngine().download("https://v.example", opts, lambda p: None)
     assert info.value.code is ErrorCode.BLOCKED
+
+
+@pytest.mark.parametrize("preset, postprocessors", [(A, [EXTRACT_AUDIO]), (P720, [])])
+async def test_download_keeps_only_the_sound_for_audio(fake_ydl, tmp_path, preset, postprocessors):
+    used = {}
+    fake_ydl.behaviour = lambda ydl_opts: used.update(ydl_opts) or {}
+    opts = DownloadOptions(preset, tmp_path, max_duration_sec=100, max_filesize_bytes=1000)
+    with pytest.raises(EngineError):
+        await YtDlpEngine().download("https://v.example", opts, lambda p: None)
+    assert used["postprocessors"] == postprocessors
 
 
 def test_build_router_engine_order():

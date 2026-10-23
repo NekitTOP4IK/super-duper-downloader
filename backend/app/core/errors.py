@@ -9,6 +9,7 @@ class ErrorCode(StrEnum):
     PRIVATE = "PRIVATE"
     GEO_BLOCKED = "GEO_BLOCKED"
     UNAVAILABLE = "UNAVAILABLE"
+    NO_AUDIO = "NO_AUDIO"
     TOO_LONG = "TOO_LONG"
     TOO_LARGE = "TOO_LARGE"
     FORBIDDEN = "FORBIDDEN"
@@ -26,6 +27,7 @@ FALLBACK_CODES = frozenset(
         ErrorCode.UNAVAILABLE,
         ErrorCode.PRIVATE,
         ErrorCode.GEO_BLOCKED,
+        ErrorCode.NO_AUDIO,
     }
 )
 RETRY_CODES = frozenset({ErrorCode.NETWORK})
