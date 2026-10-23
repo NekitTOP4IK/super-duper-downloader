@@ -11,7 +11,8 @@ x-backend: &backend
 
 services:
   caddy:
-    image: caddy:2-alpine
+    build: ./frontend
+    image: ${WEB_IMAGE:-sdd-web:local}
     ports:
       - "80:80"
       - "443:443"
@@ -19,7 +20,6 @@ services:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./frontend/dist:/srv:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
