@@ -84,6 +84,8 @@ export class ApiError extends Error {
   }
 }
 
+const GATEWAY_ERRORS = new Set([502, 503, 504]);
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -102,7 +104,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       const { code, message } = detail as { code: string; message: string };
       throw new ApiError(response.status, code, message);
     }
-    throw new ApiError(response.status, "UNKNOWN", `HTTP ${response.status}`);
+    // The API always answers with a code, so a bare gateway error comes from the proxy in front of it.
+    const code = GATEWAY_ERRORS.has(response.status) ? "OFFLINE" : "UNKNOWN";
+    throw new ApiError(response.status, code, `HTTP ${response.status}`);
   }
   return body as T;
 }
