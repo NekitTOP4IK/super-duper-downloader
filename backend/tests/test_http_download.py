@@ -69,6 +69,14 @@ async def test_rejects_declared_size_over_limit(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
+async def test_rejects_empty_body(tmp_path):
+    async with client_for(lambda request: httpx.Response(200, content=b"")) as client:
+        with pytest.raises(EngineError) as info:
+            await fetch(client, "https://h.example/a.mp4", tmp_path)
+    assert info.value.code is ErrorCode.EXTRACTION_FAILED
+    assert list(tmp_path.iterdir()) == []
+
+
 async def test_rejects_streamed_size_over_limit(tmp_path):
     async def chunks():
         for _ in range(3):

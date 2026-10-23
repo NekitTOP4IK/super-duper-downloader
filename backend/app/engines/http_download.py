@@ -102,6 +102,10 @@ async def stream_to_file(
                     )
     except httpx.TransportError as exc:
         raise transport_error(exc) from exc
+    if done == 0:
+        # A cobalt tunnel answers 200 with no body when it could not fetch the media.
+        path.unlink()
+        raise EngineError(ErrorCode.EXTRACTION_FAILED, "the server sent an empty file")
     return path
 
 
