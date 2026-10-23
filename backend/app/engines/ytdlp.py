@@ -21,6 +21,9 @@ PRESET_FORMATS = {
 _HEIGHT_PRESETS = ((Preset.P1080, 1080), (Preset.P720, 720), (Preset.P480, 480))
 # Within one resolution prefer H.264 + AAC: AV1 and Opus still fail on older phones and TVs.
 FORMAT_SORT = ["res", "vcodec:h264", "acodec:aac", "ext:mp4:m4a"]
+# With mkv listed, yt-dlp picks it whenever a stream's codec is unknown, as with X's HLS audio.
+# ffmpeg muxes every common codec into mp4, so mp4 is the fallback instead.
+MERGE_FORMAT = "webm/mp4"
 
 _ERROR_PATTERNS = (
     (ErrorCode.FORBIDDEN, (netguard.BLOCKED_MESSAGE,)),
@@ -218,7 +221,7 @@ class YtDlpEngine:
             **self._base_opts(),
             "format": format_for(opts.preset),
             "format_sort": FORMAT_SORT,
-            "merge_output_format": "mp4/mkv",
+            "merge_output_format": MERGE_FORMAT,
             "outtmpl": {"default": "%(title).150B [%(id)s].%(ext)s"},
             "paths": {"home": str(opts.dest_dir), "temp": str(opts.dest_dir / ".part")},
             "windowsfilenames": True,

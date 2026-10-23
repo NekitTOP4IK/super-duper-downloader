@@ -9,6 +9,7 @@ from app.engines.base import DownloadOptions
 from app.engines.factory import build_router
 from app.engines.ytdlp import (
     FORMAT_SORT,
+    MERGE_FORMAT,
     YtDlpEngine,
     available_presets,
     format_for,
@@ -71,6 +72,23 @@ def _select(formats, **params):
 def test_format_sort_prefers_compatible_codecs_without_losing_resolution(preset, expected):
     info = _select(_FORMATS, format=format_for(preset), format_sort=FORMAT_SORT)
     assert info["format_id"] == expected
+
+
+@pytest.mark.parametrize(
+    "video, audio, expected",
+    [
+        (("avc1.64001F", "mp4"), (None, "mp4"), "mp4"),
+        (("vp09.00.50.08", "webm"), ("mp4a.40.2", "m4a"), "mp4"),
+        (("vp9", "webm"), ("opus", "webm"), "webm"),
+    ],
+)
+def test_merged_streams_land_in_a_common_container(video, audio, expected):
+    formats = [
+        _format("v", video[0], "none", 720, video[1]),
+        _format("a", "none", audio[0], None, audio[1]),
+    ]
+    info = _select(formats, format=format_for(B), merge_output_format=MERGE_FORMAT)
+    assert info["ext"] == expected
 
 
 @pytest.mark.parametrize(
