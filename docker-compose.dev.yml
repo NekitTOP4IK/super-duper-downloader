@@ -29,7 +29,7 @@ services:
     command: watchfiles --filter python "arq app.worker.main.ProbeWorker" app
 
   redis:
-    image: redis:7.4-alpine
+    image: redis:8.0-alpine
 
   cobalt:
     image: ghcr.io/imputnet/cobalt:11
