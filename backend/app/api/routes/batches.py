@@ -11,6 +11,7 @@ from app.api.errors import ApiErrorCode, api_error
 from app.api.events import batch_events
 from app.api.schemas import BatchCreated, BatchRequest, BatchState
 from app.core.config import Settings
+from app.core.paths import download_name
 from app.core.urls import extract_urls
 from app.models import Batch, Preset
 from app.queue import TaskQueue
@@ -108,7 +109,7 @@ async def download_zip(
         archive,
         media_type="application/zip",
         headers={
-            "Content-Disposition": f'attachment; filename="{batch_id}.zip"',
+            "Content-Disposition": f'attachment; filename="{download_name(batch_id)}.zip"',
             "Content-Length": str(len(archive)),
         },
     )

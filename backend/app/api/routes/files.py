@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 
 from app.api.deps import ID_PATTERN, SettingsDep, StoreDep
 from app.api.errors import ApiErrorCode, api_error
-from app.core.paths import resolve_file
+from app.core.paths import download_name, resolve_file
 from app.models import JobStatus
 
 router = APIRouter(prefix="/api")
@@ -27,4 +27,4 @@ async def download_file(
     path = resolve_file(settings.data_dir, job, job.files[i].name)
     if path is None:
         raise api_error(404, ApiErrorCode.NOT_FOUND, "file not found or expired")
-    return FileResponse(path, filename=job.files[i].name)
+    return FileResponse(path, filename=download_name(job.files[i].name))

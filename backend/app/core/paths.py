@@ -7,6 +7,10 @@ def job_dir(data_dir: Path, batch_id: str, job_id: str) -> Path:
     return data_dir / batch_id / job_id
 
 
+def download_name(name: str) -> str:
+    return f"sdd_{name}"
+
+
 def resolve_file(data_dir: Path, job: Job, name: str) -> Path | None:
     base = job_dir(data_dir, job.batch_id, job.id).resolve()
     path = (base / name).resolve()

@@ -33,7 +33,7 @@ async def test_download_file(client, store, settings):
     response = await client.get(f"/api/files/{job.id}")
     assert response.status_code == 200
     assert response.content == b"VIDEO"
-    assert "clip.mp4" in response.headers["content-disposition"]
+    assert 'filename="sdd_clip.mp4"' in response.headers["content-disposition"]
 
 
 async def test_file_index_out_of_range_is_404(client, store, settings):
@@ -62,8 +62,9 @@ async def test_zip_contains_done_files_with_unique_names(client, store, settings
     await make_done_job(store, settings, batch, second, {"a.mp4": b"2"})
     response = await client.get(f"/api/batches/{batch.id}/zip")
     assert response.status_code == 200
+    assert f'filename="sdd_{batch.id}.zip"' in response.headers["content-disposition"]
     archive = zipfile.ZipFile(io.BytesIO(response.content))
-    assert sorted(archive.namelist()) == ["a (2).mp4", "a.mp4"]
+    assert sorted(archive.namelist()) == ["sdd_a (2).mp4", "sdd_a.mp4"]
 
 
 async def test_zip_without_files_is_404(client, store):

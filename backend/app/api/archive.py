@@ -2,7 +2,7 @@ from pathlib import Path
 
 from zipstream import ZIP_STORED, ZipStream
 
-from app.core.paths import resolve_file
+from app.core.paths import download_name, resolve_file
 from app.models import Job, JobStatus
 
 
@@ -27,5 +27,5 @@ def build_zip(data_dir: Path, jobs: list[Job]) -> ZipStream | None:
         for file in job.files:
             path = resolve_file(data_dir, job, file.name)
             if path is not None:
-                archive.add_path(str(path), unique_name(file.name, used))
+                archive.add_path(str(path), unique_name(download_name(file.name), used))
     return archive if used else None
