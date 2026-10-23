@@ -1,13 +1,21 @@
 # super-duper-downloader
 
+**English** · [Русский](README.ru.md)
+
+A work-in-progress pet downloader that can download almost (no) anything.
+
 Paste a link, get the file. A self-hosted web downloader for public media: YouTube,
-TikTok, Instagram, X, Reddit, SoundCloud, VK and the rest of the
+TikTok, Instagram, X, VK, SoundCloud and the rest of the
 [sites yt-dlp supports](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md),
 plus plain file links.
 
 - One link shows a preview and only the qualities the media really has: best, 1080p,
-  720p, 480p or audio. Video comes as H.264 with AAC where the site offers it, so it
-  plays everywhere.
+  720p, 480p or audio, each with its approximate size where the site gives enough to
+  tell. A quality is measured on the shorter side, so 720p of a vertical video is
+  720x1280. Video comes as H.264 with AAC where the site offers it, so it plays
+  everywhere.
+- Audio is the site's own sound track. Where a site has none apart from the video, the
+  sound is copied out of the video without re-encoding.
 - Bulk mode takes up to 50 links at once, pasted or loaded from a `.txt`, and offers
   the whole batch as a zip.
 - Playlists expand into separate downloads, while a post with several videos, such as
@@ -15,6 +23,45 @@ plus plain file links.
   live, and the list of downloads survives a page reload.
 - A terminal-style interface in Russian or English, with 23 color themes and four
   monospace fonts.
+
+## What it downloads, and what it does not
+
+Tried in October 2026 from a hosting and VPN address. Every mark below is a file that
+was downloaded through the app and checked with ffprobe.
+
+| Site | Video | Audio | Note |
+| --- | :---: | :---: | --- |
+| YouTube: videos, Shorts, Music | ✓ | ✓ | |
+| TikTok, photo slideshows too | ✓ | ✓ | Audio is the post's sound, which can run longer than the video |
+| Instagram: reels, posts, carousels | ✓ | ✓ | |
+| X | ✓ | ✓ | |
+| VK | ✓ | ✓ | |
+| Rutube | ✓ | ✓ | |
+| OK.ru | ✓ | ✓ | |
+| Facebook reels | ✓ | — | The reel tried had no sound |
+| Pinterest | ✓ | ✓ | |
+| Bluesky | ✓ | ✓ | |
+| Twitch clips | ✓ | ✓ | |
+| Kick clips | ✓ | ✓ | |
+| Dailymotion | ✓ | ✓ | |
+| Streamable | ✓ | ✓ | |
+| Imgur | ✓ | — | GIF videos have no sound |
+| Snapchat Spotlight | ✓ | ✓ | |
+| Telegram, public posts | ✓ | ✓ | |
+| Tumblr | ✓ | ✗ | The site rate-limited the audio attempt |
+| SoundCloud: tracks, sets | — | ✓ | |
+| Bandcamp | — | ✓ | |
+| Mixcloud | — | ✓ | |
+| Plain file links | ✓ | ✓ | |
+
+✓ works, ✗ failed, — nothing to download.
+
+- **Refused that address:** Reddit, Bilibili, Rumble, Vimeo. See
+  [Sites that refuse servers](#sites-that-refuse-servers).
+- **Need a logged-in account,** which the downloader does not take: Instagram stories,
+  Douyin, private and age-restricted videos.
+
+Sites change often, so any of this can break until yt-dlp or cobalt catches up.
 
 ## Running it
 
@@ -35,6 +82,21 @@ The site opens at <http://localhost>. To serve it on a domain, set `SITE_ADDRESS
 > There are no accounts or per-user limits yet. Anyone who can open the page can
 > download through your server, using its bandwidth and disk. The limits below apply to
 > everyone together.
+
+### Behind another web server
+
+If ports 80 and 443 already belong to a web server such as nginx, publish Caddy on a
+local port instead, in a `docker-compose.override.yml` next to `docker-compose.yml`:
+
+```yaml
+services:
+  caddy:
+    ports: !override
+      - "127.0.0.1:18090:80"
+```
+
+Then proxy the domain to `127.0.0.1:18090` from that server, with response buffering
+off (`proxy_buffering off` in nginx): download progress comes as an event stream.
 
 ## Configuration
 
@@ -148,8 +210,6 @@ adjusted to one contrast range.
 
 ## License
 
-[AGPL-3.0](LICENSE). If you run a modified version as a public service, the license
-asks you to offer its source to the people using it; the footer link is the place to
-point at your fork.
+[AGPL-3.0](LICENSE).
 
 Download only what you have the right to download.
