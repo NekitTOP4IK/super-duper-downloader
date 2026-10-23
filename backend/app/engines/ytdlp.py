@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import re
 from pathlib import Path
 from typing import Any
@@ -126,6 +127,7 @@ def info_to_media(url: str, info: dict[str, Any], playlist_limit: int) -> MediaI
             count=info.get("playlist_count") or len(entries),
             entries=entries[:playlist_limit],
         )
+    presets = available_presets(info)
     return MediaInfo(
         kind=MediaKind.SINGLE,
         url=url,
@@ -133,23 +135,78 @@ def info_to_media(url: str, info: dict[str, Any], playlist_limit: int) -> MediaI
         thumbnail=_thumbnail(info),
         duration=info.get("duration"),
         uploader=info.get("uploader") or info.get("channel"),
-        presets=available_presets(info),
+        presets=presets,
+        sizes=preset_sizes([info], presets),
     )
 
 
 def _post(url: str, info: dict[str, Any], items: list[dict[str, Any]]) -> MediaInfo:
     # Videos of a post, such as an Instagram carousel, come already extracted and have no pages
     # of their own to queue, so the post downloads as one item with several files.
-    presets = {preset for item in items for preset in available_presets(item)}
+    offered = {preset for item in items for preset in available_presets(item)}
+    presets = [preset for preset in Preset if preset in offered]
     return MediaInfo(
         kind=MediaKind.SINGLE,
         url=url,
         title=info.get("title"),
         thumbnail=_thumbnail(info) or next(filter(None, map(_thumbnail, items)), None),
         uploader=info.get("uploader") or info.get("channel"),
-        presets=[preset for preset in Preset if preset in presets],
+        presets=presets,
+        sizes=preset_sizes(items, presets),
         count=len(items),
     )
+
+
+def preset_sizes(items: list[dict[str, Any]], presets: list[Preset]) -> dict[Preset, int]:
+    """Sizes of what each preset would download, left out where any stream has no size."""
+    sizes = {}
+    for preset in presets:
+        with YoutubeDL(
+            {"quiet": True, "no_warnings": True, "check_formats": False, **_selection(preset)}
+        ) as ydl:
+            parts = [_selected_size(ydl, item) for item in items]
+        if parts and all(parts):
+            sizes[preset] = sum(parts)
+    return sizes
+
+
+def _selected_size(ydl: YoutubeDL, info: dict[str, Any]) -> int | None:
+    # The probe already picked formats once; a pick of a single format would keep its list.
+    fresh = {key: value for key, value in info.items() if key != "requested_formats"}
+    try:
+        chosen = ydl.process_ie_result(copy.deepcopy(fresh), download=False)
+    except Exception:
+        # A size is only a hint and must not cost the preview, whatever the extractor returned.
+        return None
+    sizes = [_stream_size(fmt, chosen.get("duration")) for fmt in _chosen_streams(chosen)]
+    return sum(sizes) if all(sizes) else None
+
+
+def _chosen_streams(chosen: dict[str, Any]) -> list[dict[str, Any]]:
+    if chosen.get("requested_formats"):
+        return chosen["requested_formats"]
+    # The info itself still holds fields of the format picked before, such as its size.
+    by_id = {fmt.get("format_id"): fmt for fmt in chosen.get("formats") or []}
+    return [by_id.get(chosen.get("format_id"), chosen)]
+
+
+def _stream_size(fmt: dict[str, Any], duration: float | None) -> int | None:
+    if size := fmt.get("filesize") or fmt.get("filesize_approx"):
+        return int(size)
+    # HLS playlists state a bitrate and no size.
+    return _from_bitrate(fmt.get("tbr"), duration)
+
+
+def _from_bitrate(kbps: float | None, duration: float | None) -> int | None:
+    return int(kbps * 1000 / 8 * duration) if kbps and duration else None
+
+
+def _selection(preset: Preset) -> dict[str, Any]:
+    return {
+        "format": format_for(preset),
+        "format_sort": FORMAT_SORT,
+        "merge_output_format": MERGE_FORMAT,
+    }
 
 
 def map_ytdlp_error(exc: BaseException) -> EngineError:
@@ -248,9 +305,7 @@ class YtDlpEngine:
 
         ydl_opts = {
             **self._base_opts(),
-            "format": format_for(opts.preset),
-            "format_sort": FORMAT_SORT,
-            "merge_output_format": MERGE_FORMAT,
+            **_selection(opts.preset),
             # Ids of plain file links are their whole file name, which can fill the 255-byte limit.
             "outtmpl": {"default": "%(title).150B [%(id).64B].%(ext)s"},
             "paths": {"home": str(opts.dest_dir), "temp": str(opts.dest_dir / ".part")},

@@ -34,6 +34,7 @@ class MediaInfo(BaseModel):
     duration: float | None = None
     uploader: str | None = None
     presets: list[Preset] = []
+    sizes: dict[Preset, int] = {}
     count: int | None = None
     entries: list[PlaylistEntry] = []
 

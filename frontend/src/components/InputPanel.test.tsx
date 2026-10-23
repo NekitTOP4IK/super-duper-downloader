@@ -49,6 +49,27 @@ describe("InputPanel", () => {
     await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue(""));
   });
 
+  it("shows the approximate size of each quality it knows", async () => {
+    mockProbe({
+      kind: "single",
+      url: "https://youtu.be/b",
+      title: "Mob Rap",
+      thumbnail: null,
+      duration: 267,
+      uploader: null,
+      presets: ["best", "720", "audio"],
+      sizes: { best: 305043934, "720": 90595025 },
+      count: null,
+      entries: [],
+    });
+    const { user } = setup();
+    await user.type(screen.getByRole("textbox"), "https://youtu.be/b");
+
+    expect(await screen.findByRole("button", { name: "best ~291 MB" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "720 ~86.4 MB" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "audio" })).toBeInTheDocument();
+  });
+
   it("says how many files a post with several videos holds", async () => {
     mockProbe({
       kind: "single",

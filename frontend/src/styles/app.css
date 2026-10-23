@@ -422,6 +422,15 @@ kbd {
   color: var(--strong);
 }
 
+.chip small {
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.chip[aria-pressed="true"] small {
+  color: var(--fg);
+}
+
 .bulk .chip[aria-pressed="true"] {
   border-color: var(--danger-line);
   background: var(--danger-soft);
@@ -475,6 +484,12 @@ kbd {
 
 .preview .row {
   margin-top: 12px;
+}
+
+/* Sizes widen the chips past one line; they wrap beside the button instead of pushing it down. */
+.preview .presets {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .spinner::before {

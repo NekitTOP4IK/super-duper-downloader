@@ -133,6 +133,81 @@ def test_info_to_media_single():
     assert media.presets == [B, P720, P480, A]
 
 
+def _video(formats, video_id="x", duration=10):
+    return {
+        "id": video_id,
+        "title": "t",
+        "duration": duration,
+        "formats": formats,
+        "extractor": "t",
+        "extractor_key": "T",
+        "webpage_url": f"https://site.example/{video_id}",
+    }
+
+
+def _sized(format_id, vcodec, acodec, height, ext, **size):
+    return {**_format(format_id, vcodec, acodec, height, ext), **size}
+
+
+_SIZED = [
+    _sized("v1080", "avc1.640028", "none", 1080, "mp4", filesize=1000),
+    _sized("v720", "avc1.64001F", "none", 720, "mp4", filesize_approx=600),
+    _sized("v480", "avc1.4D401E", "none", 480, "mp4", filesize=300),
+    _sized("aac", "none", "mp4a.40.2", None, "m4a", filesize=100),
+]
+
+
+def test_info_to_media_sizes_each_preset_by_the_streams_it_takes():
+    media = info_to_media("https://v.example", _video(_SIZED), 50)
+    assert media.sizes == {B: 1100, P1080: 1100, P720: 700, P480: 400, A: 100}
+
+
+def test_info_to_media_sizes_an_already_selected_video():
+    media = info_to_media("https://v.example", _select(_SIZED, format=format_for(B)), 50)
+    assert media.sizes[A] == 100
+
+
+def test_info_to_media_does_not_size_a_stream_by_the_one_picked_before():
+    formats = [
+        _sized("mp3", "none", "mp3", None, "mp3"),
+        _sized("v", "h264", "aac", 1080, "mp4", filesize=6000),
+    ]
+    media = info_to_media("https://v.example", _select(formats, format=format_for(B)), 50)
+    assert media.sizes == {B: 6000, P1080: 6000}
+
+
+def test_info_to_media_estimates_size_from_bitrate():
+    formats = [
+        _sized("hls-800", "avc1.64001F", "none", 720, "mp4", tbr=800),
+        _sized("hls-audio", "none", None, None, "mp4", tbr=128),
+    ]
+    media = info_to_media("https://v.example", _video(formats, duration=10), 50)
+    assert media.sizes[B] == 1_160_000
+
+
+def test_info_to_media_leaves_unknown_sizes_out():
+    formats = [
+        _sized("v", "avc1.64001F", "none", 720, "mp4"),
+        _sized("aac", "none", "mp4a.40.2", None, "m4a", filesize=100),
+    ]
+    media = info_to_media("https://v.example", _video(formats), 50)
+    assert media.sizes == {A: 100}
+
+
+def test_info_to_media_sizes_a_post_by_all_its_videos():
+    info = {
+        "_type": "playlist",
+        "title": "Post",
+        "entries": [
+            _select(_SIZED[1:], format=format_for(B)),
+            _select(_SIZED, format=format_for(B)),
+        ],
+    }
+    media = info_to_media("https://site.example/p/1", info, 50)
+    assert media.sizes[P720] == 1400
+    assert media.sizes[A] == 200
+
+
 def test_info_to_media_playlist_with_flat_entries():
     info = {
         "_type": "playlist",

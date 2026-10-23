@@ -9,6 +9,8 @@ export interface PlaylistEntry {
   duration: number | null;
 }
 
+export type Sizes = Partial<Record<Preset, number>>;
+
 export interface MediaInfo {
   kind: "single" | "playlist";
   url: string;
@@ -17,6 +19,7 @@ export interface MediaInfo {
   duration: number | null;
   uploader: string | null;
   presets: Preset[];
+  sizes: Sizes;
   count: number | null;
   entries: PlaylistEntry[];
 }

@@ -272,7 +272,7 @@ ${text}` : text));
 
       {!bulk && probe.status === "ready" ? (
         <Preview info={probe.info} maxItems={limits.max_playlist_items}>
-          <Presets options={offered} value={chosen} onChange={setPreset} />
+          <Presets options={offered} value={chosen} onChange={setPreset} sizes={probe.info.sizes} />
           {goButton(t("input.download"), [probe.url])}
         </Preview>
       ) : null}
