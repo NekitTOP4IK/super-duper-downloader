@@ -49,17 +49,18 @@ class EngineRouter:
         candidates = [engine for engine in self._engines if engine.can_handle(url)]
         if not candidates:
             raise EngineError(ErrorCode.UNSUPPORTED, "no engine can handle this URL")
-        last_error: EngineError | None = None
+        errors: list[EngineError] = []
         for engine in candidates:
             try:
                 return engine, await self._attempt(engine, op)
             except EngineError as exc:
                 log.info("engine %s failed for %s: %s %s", engine.name, url, exc.code, exc.message)
-                last_error = exc
+                errors.append(exc)
                 if exc.code not in FALLBACK_CODES:
                     raise
-        assert last_error is not None
-        raise last_error
+        # Generic fallbacks answer UNSUPPORTED for nearly anything, which would hide the real
+        # reason ("login required", "rate limited") reported by the engine that knew the site.
+        raise next((exc for exc in errors if exc.code is not ErrorCode.UNSUPPORTED), errors[-1])
 
     async def _attempt[T](self, engine: Engine, op: Callable[[Engine], Awaitable[T]]) -> T:
         attempt = 0

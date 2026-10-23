@@ -93,8 +93,19 @@ async def test_unexpected_exception_is_internal_without_fallback():
     assert second.probe_calls == []
 
 
-async def test_all_engines_failing_raises_last_error():
-    first = FakeEngine("a", probe=[EngineError(ErrorCode.BLOCKED)])
+async def test_all_engines_failing_reports_the_first_specific_error():
+    first = FakeEngine("a", probe=[EngineError(ErrorCode.UNSUPPORTED)])
+    second = FakeEngine("b", probe=[EngineError(ErrorCode.BLOCKED, "login required")])
+    third = FakeEngine("c", probe=[EngineError(ErrorCode.EXTRACTION_FAILED)])
+    fourth = FakeEngine("d", probe=[EngineError(ErrorCode.UNSUPPORTED)])
+    with pytest.raises(EngineError) as info:
+        await make_router(first, second, third, fourth).probe(URL)
+    assert info.value.code is ErrorCode.BLOCKED
+    assert info.value.message == "login required"
+
+
+async def test_all_engines_unsupported_stays_unsupported():
+    first = FakeEngine("a", probe=[EngineError(ErrorCode.UNSUPPORTED)])
     second = FakeEngine("b", probe=[EngineError(ErrorCode.UNSUPPORTED)])
     with pytest.raises(EngineError) as info:
         await make_router(first, second).probe(URL)
