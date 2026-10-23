@@ -34,6 +34,8 @@ _EXACT_CODES = {
     "content.video.region": ErrorCode.GEO_BLOCKED,
     "content.region": ErrorCode.GEO_BLOCKED,
     "content.too_long": ErrorCode.TOO_LONG,
+    "content.video.unavailable": ErrorCode.UNAVAILABLE,
+    "content.post.unavailable": ErrorCode.UNAVAILABLE,
     "unreachable": ErrorCode.NETWORK,
     "timed_out": ErrorCode.NETWORK,
     "rate_exceeded": ErrorCode.BLOCKED,

@@ -50,6 +50,8 @@ def http_error(status: int) -> EngineError:
         code = ErrorCode.PRIVATE
     elif status in (403, 429):
         code = ErrorCode.BLOCKED
+    elif status in (404, 410):
+        code = ErrorCode.UNAVAILABLE
     elif status == 451:
         code = ErrorCode.GEO_BLOCKED
     elif status >= 500:

@@ -29,6 +29,7 @@ def test_fallback_and_retry_codes():
         ErrorCode.BLOCKED,
         ErrorCode.EXTRACTION_FAILED,
         ErrorCode.NETWORK,
+        ErrorCode.UNAVAILABLE,
     } == FALLBACK_CODES
     assert {ErrorCode.NETWORK} == RETRY_CODES
 

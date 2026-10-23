@@ -146,7 +146,23 @@ def test_info_to_media_playlist_respects_limit():
         ),
         ("ERROR: [generic] Unsupported URL: https://example.com", ErrorCode.UNSUPPORTED),
         ("ERROR: Unable to download webpage: <urlopen error timed out>", ErrorCode.NETWORK),
-        ("ERROR: [youtube] x: Video unavailable", ErrorCode.EXTRACTION_FAILED),
+        ("ERROR: [youtube] x: Video unavailable", ErrorCode.UNAVAILABLE),
+        (
+            "ERROR: [youtube:tab] x: YouTube said: The playlist does not exist.",
+            ErrorCode.UNAVAILABLE,
+        ),
+        ("ERROR: [twitter] x: This content is no longer available.", ErrorCode.UNAVAILABLE),
+        ("ERROR: [generic] Unable to download webpage: HTTP Error 404", ErrorCode.UNAVAILABLE),
+        (
+            "ERROR: [youtube] x: This content isn't available, try again later. The current"
+            " session has been rate-limited by YouTube for up to an hour.",
+            ErrorCode.BLOCKED,
+        ),
+        (
+            "ERROR: [youtube] x: Video unavailable. YouTube is requiring a captcha challenge",
+            ErrorCode.BLOCKED,
+        ),
+        ("ERROR: [x] something odd happened", ErrorCode.EXTRACTION_FAILED),
     ],
 )
 def test_map_ytdlp_error_by_message(message, code):

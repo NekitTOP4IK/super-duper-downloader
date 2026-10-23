@@ -33,6 +33,7 @@ _ERROR_PATTERNS = (
             "too many requests",
             "rate-limit",
             "rate limit",
+            "captcha",
         ),
     ),
     (
@@ -50,6 +51,16 @@ _ERROR_PATTERNS = (
     (
         ErrorCode.GEO_BLOCKED,
         ("not available in your country", "geo restriction", "geo-restricted"),
+    ),
+    (
+        ErrorCode.UNAVAILABLE,
+        (
+            "video unavailable",
+            "does not exist",
+            "has been removed",
+            "no longer available",
+            "http error 404",
+        ),
     ),
     (ErrorCode.UNSUPPORTED, ("unsupported url",)),
     (

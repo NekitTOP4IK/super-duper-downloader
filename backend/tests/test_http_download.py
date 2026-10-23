@@ -87,7 +87,9 @@ async def test_rejects_streamed_size_over_limit(tmp_path):
         (403, ErrorCode.BLOCKED),
         (429, ErrorCode.BLOCKED),
         (451, ErrorCode.GEO_BLOCKED),
-        (404, ErrorCode.EXTRACTION_FAILED),
+        (404, ErrorCode.UNAVAILABLE),
+        (410, ErrorCode.UNAVAILABLE),
+        (400, ErrorCode.EXTRACTION_FAILED),
         (503, ErrorCode.NETWORK),
     ],
 )

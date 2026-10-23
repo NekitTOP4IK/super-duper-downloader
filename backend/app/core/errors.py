@@ -8,6 +8,7 @@ class ErrorCode(StrEnum):
     NETWORK = "NETWORK"
     PRIVATE = "PRIVATE"
     GEO_BLOCKED = "GEO_BLOCKED"
+    UNAVAILABLE = "UNAVAILABLE"
     TOO_LONG = "TOO_LONG"
     TOO_LARGE = "TOO_LARGE"
     FORBIDDEN = "FORBIDDEN"
@@ -15,7 +16,13 @@ class ErrorCode(StrEnum):
 
 
 FALLBACK_CODES = frozenset(
-    {ErrorCode.UNSUPPORTED, ErrorCode.BLOCKED, ErrorCode.EXTRACTION_FAILED, ErrorCode.NETWORK}
+    {
+        ErrorCode.UNSUPPORTED,
+        ErrorCode.BLOCKED,
+        ErrorCode.EXTRACTION_FAILED,
+        ErrorCode.NETWORK,
+        ErrorCode.UNAVAILABLE,
+    }
 )
 RETRY_CODES = frozenset({ErrorCode.NETWORK})
 

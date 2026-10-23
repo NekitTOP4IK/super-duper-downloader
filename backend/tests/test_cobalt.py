@@ -104,6 +104,8 @@ async def test_connection_error_is_network():
         ("error.api.fetch.rate", ErrorCode.BLOCKED),
         ("error.api.youtube.decipher", ErrorCode.BLOCKED),
         ("error.api.auth.jwt.missing", ErrorCode.BLOCKED),
+        ("error.api.content.video.unavailable", ErrorCode.UNAVAILABLE),
+        ("error.api.content.post.unavailable", ErrorCode.UNAVAILABLE),
         ("error.api.fetch.fail", ErrorCode.EXTRACTION_FAILED),
         ("", ErrorCode.EXTRACTION_FAILED),
     ],
