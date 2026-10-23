@@ -440,3 +440,13 @@ async def test_download_maps_ytdlp_errors(fake_ydl, opts):
 def test_build_router_engine_order():
     router = build_router(Settings(_env_file=None))
     assert [engine.name for engine in router.engines] == ["ytdlp", "cobalt", "direct"]
+
+
+async def test_file_names_fit_the_filesystem_limit(fake_ydl, opts):
+    used = {}
+    fake_ydl.behaviour = lambda ydl_opts: used.update(ydl_opts) or {}
+    with pytest.raises(EngineError):
+        await YtDlpEngine().download("https://cdn.example/x.mp4", opts, lambda p: None)
+    with YoutubeDL({"outtmpl": used["outtmpl"]}) as ydl:
+        name = ydl.prepare_filename({"id": "i" * 300, "title": "т" * 300, "ext": "mp4"})
+    assert len(name.encode()) <= 255

@@ -231,7 +231,8 @@ class YtDlpEngine:
             "format": format_for(opts.preset),
             "format_sort": FORMAT_SORT,
             "merge_output_format": MERGE_FORMAT,
-            "outtmpl": {"default": "%(title).150B [%(id)s].%(ext)s"},
+            # Ids of plain file links are their whole file name, which can fill the 255-byte limit.
+            "outtmpl": {"default": "%(title).150B [%(id).64B].%(ext)s"},
             "paths": {"home": str(opts.dest_dir), "temp": str(opts.dest_dir / ".part")},
             "windowsfilenames": True,
             "max_filesize": opts.max_filesize_bytes,
