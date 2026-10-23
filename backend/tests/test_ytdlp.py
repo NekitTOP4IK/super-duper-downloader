@@ -188,6 +188,34 @@ def test_info_to_media_playlist_respects_limit():
             "ERROR: [TikTok] 1: Your IP address is blocked from accessing this post",
             ErrorCode.GEO_BLOCKED,
         ),
+        (
+            "ERROR: [instagram:story] 1: You need to log in to access this content. Use"
+            " --cookies-from-browser or --cookies for the authentication.",
+            ErrorCode.PRIVATE,
+        ),
+        (
+            "ERROR: [facebook] 1: This video is only available for registered users. Use"
+            " --cookies-from-browser or --cookies for the authentication.",
+            ErrorCode.PRIVATE,
+        ),
+        (
+            "ERROR: [Reddit] 1: Account authentication is required. Use --cookies-from-browser",
+            ErrorCode.BLOCKED,
+        ),
+        (
+            "ERROR: [vimeo] 1: The web client only works when logged-in. Use --cookies",
+            ErrorCode.PRIVATE,
+        ),
+        ("ERROR: [x] 1: You have to be logged in to get your history", ErrorCode.PRIVATE),
+        (
+            "ERROR: [Douyin] 1: Fresh cookies (not necessarily logged in) are needed",
+            ErrorCode.EXTRACTION_FAILED,
+        ),
+        (
+            "ERROR: [Instagram] 1: Instagram sent an empty media response. Check if this post is"
+            " accessible in your browser without being logged-in.",
+            ErrorCode.EXTRACTION_FAILED,
+        ),
         ("ERROR: [x] something odd happened", ErrorCode.EXTRACTION_FAILED),
     ],
 )

@@ -37,6 +37,8 @@ _ERROR_PATTERNS = (
             "rate-limit",
             "rate limit",
             "captcha",
+            # Reddit's wording for a block page served instead of its API.
+            "account authentication is required",
         ),
     ),
     (
@@ -49,6 +51,12 @@ _ERROR_PATTERNS = (
             "login required",
             "members-only",
             "join this channel",
+            "registered users",
+            "log in to",
+            "login to access",
+            "be logged in",
+            "only works when logged-in",
+            "not authorized to view",
         ),
     ),
     (
