@@ -50,3 +50,10 @@ async def test_download_rejects_pages(engine, opts):
 def test_handles_only_http(engine):
     assert engine.can_handle("https://h.example/a")
     assert not engine.can_handle("ftp://h.example/a")
+
+
+async def test_socks_proxies_are_supported():
+    engine = DirectEngine(proxy_url="socks5://127.0.0.1:9")
+    with pytest.raises(EngineError) as info:
+        await engine.probe("https://example.com/file.zip")
+    assert info.value.code is ErrorCode.NETWORK
