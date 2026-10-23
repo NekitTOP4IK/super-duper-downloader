@@ -13,6 +13,10 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
+    ignore:
+      # A new Python minor needs a re-locked environment and a .python-version bump, done by hand.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   - package-ecosystem: docker-compose
     directory: /
