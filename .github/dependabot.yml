@@ -30,6 +30,10 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+    ignore:
+      # Dependabot offers the newest major even when it is not LTS or already end-of-life.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker-compose
     directory: /
