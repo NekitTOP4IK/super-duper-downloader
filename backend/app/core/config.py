@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     cobalt_url: str = "http://localhost:9000"
     proxy_url: str = ""
+    egress_allow_cidrs: str = ""
 
     max_duration_sec: int = 10800
     max_filesize_mb: int = 2048
@@ -37,8 +38,15 @@ class Settings(BaseSettings):
 
     @property
     def internal_hosts(self) -> set[str]:
-        urls = (self.redis_url, self.cobalt_url, self.proxy_url)
-        return {host for url in urls if url and (host := urlsplit(url).hostname)}
+        return _hosts(self.redis_url, self.cobalt_url)
+
+    @property
+    def egress_hosts(self) -> set[str]:
+        return _hosts(self.proxy_url)
+
+
+def _hosts(*urls: str) -> set[str]:
+    return {host for url in urls if url and (host := urlsplit(url).hostname)}
 
 
 @lru_cache

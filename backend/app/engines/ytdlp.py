@@ -6,8 +6,8 @@ from typing import Any
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import GeoRestrictedError, UnsupportedError
 
+from app.core import netguard
 from app.core.errors import EngineError, ErrorCode
-from app.core.netguard import BLOCKED_MESSAGE
 from app.engines.base import DownloadOptions, ProgressCallback, is_http_url
 from app.models import MediaInfo, MediaKind, PlaylistEntry, Preset, Progress
 
@@ -23,7 +23,7 @@ _HEIGHT_PRESETS = ((Preset.P1080, 1080), (Preset.P720, 720), (Preset.P480, 480))
 FORMAT_SORT = ["res", "vcodec:h264", "acodec:aac", "ext:mp4:m4a"]
 
 _ERROR_PATTERNS = (
-    (ErrorCode.FORBIDDEN, (BLOCKED_MESSAGE,)),
+    (ErrorCode.FORBIDDEN, (netguard.BLOCKED_MESSAGE,)),
     (
         ErrorCode.BLOCKED,
         (
@@ -116,7 +116,9 @@ def map_ytdlp_error(exc: BaseException) -> EngineError:
     lowered = message.lower()
     for code, patterns in _ERROR_PATTERNS:
         if any(pattern in lowered for pattern in patterns):
-            return EngineError(code, message)
+            # The raw text names internal hosts and addresses, which users should not see.
+            text = netguard.BLOCKED_MESSAGE if code is ErrorCode.FORBIDDEN else message
+            return EngineError(code, text)
     return EngineError(ErrorCode.EXTRACTION_FAILED, message)
 
 
@@ -131,12 +133,14 @@ class YtDlpEngine:
         return is_http_url(url)
 
     async def probe(self, url: str) -> MediaInfo:
-        return await asyncio.to_thread(self._probe_sync, url)
+        with netguard.untrusted():
+            return await asyncio.to_thread(self._probe_sync, url)
 
     async def download(
         self, url: str, opts: DownloadOptions, on_progress: ProgressCallback
     ) -> list[Path]:
-        return await asyncio.to_thread(self._download_sync, url, opts, on_progress)
+        with netguard.untrusted():
+            return await asyncio.to_thread(self._download_sync, url, opts, on_progress)
 
     def _base_opts(self) -> dict[str, Any]:
         opts: dict[str, Any] = {

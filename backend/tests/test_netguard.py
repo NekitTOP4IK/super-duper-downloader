@@ -1,3 +1,4 @@
+import json
 import socket
 import sys
 import threading
@@ -44,12 +45,29 @@ def test_public_addresses_are_accepted(address):
     assert netguard.is_public(address)
 
 
-def test_allowlist_permits_resolved_internal_hosts():
-    allowlist = netguard.Allowlist(["localhost"])
-    netguard.check_address("localhost", allowlist)
-    netguard.check_address("127.0.0.1", allowlist)
+def test_internal_hosts_are_reachable_only_outside_untrusted_blocks():
+    policy = netguard.Policy(netguard.Allowlist(["localhost"]), netguard.Allowlist([]))
+    policy.check("localhost")
+    policy.check("127.0.0.1")
     with pytest.raises(netguard.BlockedAddressError):
-        netguard.check_address("10.1.2.3", allowlist)
+        policy.check("10.1.2.3")
+    with netguard.untrusted():
+        for host in ("localhost", "127.0.0.1"):
+            with pytest.raises(netguard.BlockedAddressError):
+                policy.check(host)
+    policy.check("127.0.0.1")
+
+
+def test_egress_allowlist_applies_inside_untrusted_blocks():
+    egress = netguard.Allowlist(
+        ["localhost"], netguard.parse_networks("198.18.0.0/15, 10.9.0.0/16")
+    )
+    policy = netguard.Policy(netguard.Allowlist([]), egress)
+    with netguard.untrusted():
+        for host in ("198.18.0.127", "10.9.1.1", "localhost", "127.0.0.1", "1.1.1.1"):
+            policy.check(host)
+        with pytest.raises(netguard.BlockedAddressError):
+            policy.check("10.8.1.1")
 
 
 def test_is_blocked_walks_causes_and_groups():
@@ -77,6 +95,15 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"secret")
 
+    def do_POST(self):
+        # Answers like cobalt does for a redirect: hands the requested URL back to download.
+        request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        body = json.dumps({"status": "redirect", "url": request["url"]}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(body)
+
     def log_message(self, *args):
         pass
 
@@ -101,7 +128,8 @@ def guard():
 @pytest.fixture
 async def async_guard():
     # Windows builds the event loop's self-pipe over loopback TCP, so install after it exists.
-    netguard.install([])
+    # localhost counts as one of our services here: user URLs must still not reach it.
+    netguard.install(["localhost"])
     yield
     netguard.uninstall()
 
@@ -131,15 +159,17 @@ def test_guard_blocks_hostnames_resolving_to_private_addresses(local_server, gua
 @needs_selector_loop
 async def test_guard_blocks_async_httpx(local_server, async_guard):
     async with httpx.AsyncClient() as client:
-        with pytest.raises(httpx.ConnectError) as info:
+        with netguard.untrusted(), pytest.raises(httpx.ConnectError) as info:
             await client.get(local_server)
     assert netguard.is_blocked(info.value)
 
 
-def test_guard_keeps_allowlisted_hosts_reachable(local_server):
+def test_guard_keeps_internal_hosts_reachable_for_our_code_only(local_server):
     netguard.install(["localhost"])
     try:
         assert httpx.get(local_server).text == "secret"
+        with netguard.untrusted(), pytest.raises(httpx.ConnectError):
+            httpx.get(local_server)
     finally:
         netguard.uninstall()
 
@@ -150,7 +180,9 @@ def test_ytdlp_errors_from_blocked_connections_map_to_forbidden():
     exc = Exception(
         f"ERROR: Unable to download webpage: <urlopen error {netguard.BLOCKED_MESSAGE}: 10.0.0.1>"
     )
-    assert map_ytdlp_error(exc).code is ErrorCode.FORBIDDEN
+    error = map_ytdlp_error(exc)
+    assert error.code is ErrorCode.FORBIDDEN
+    assert error.message == netguard.BLOCKED_MESSAGE
 
 
 async def test_ytdlp_probe_of_internal_url_fails_as_forbidden(local_server, async_guard):
@@ -169,4 +201,39 @@ async def test_direct_probe_of_internal_url_fails_as_forbidden(local_server, asy
 
     with pytest.raises(EngineError) as info:
         await DirectEngine().probe(local_server)
+    assert info.value.code is ErrorCode.FORBIDDEN
+
+
+def _cobalt_on(local_server):
+    from app.engines.cobalt import CobaltEngine
+
+    port = local_server.rsplit(":", 1)[1].strip("/")
+    return CobaltEngine(f"http://localhost:{port}"), port
+
+
+def _options(tmp_path):
+    from app.engines.base import DownloadOptions
+    from app.models import Preset
+
+    return DownloadOptions(Preset.BEST, tmp_path, max_duration_sec=100, max_filesize_bytes=1000)
+
+
+@needs_selector_loop
+async def test_cobalt_downloads_its_own_tunnels(local_server, async_guard, tmp_path):
+    engine, port = _cobalt_on(local_server)
+    [path] = await engine.download(
+        f"http://localhost:{port}/tunnel", _options(tmp_path), lambda p: None
+    )
+    assert path.read_bytes() == b"secret"
+
+
+@needs_selector_loop
+async def test_cobalt_redirects_to_internal_addresses_fail_as_forbidden(
+    local_server, async_guard, tmp_path
+):
+    from app.core.errors import EngineError
+
+    engine, port = _cobalt_on(local_server)
+    with pytest.raises(EngineError) as info:
+        await engine.download(f"http://127.0.0.1:{port}/file", _options(tmp_path), lambda p: None)
     assert info.value.code is ErrorCode.FORBIDDEN

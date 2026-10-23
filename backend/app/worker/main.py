@@ -18,7 +18,11 @@ redis_settings = RedisSettings.from_dsn(settings.redis_url)
 
 async def startup(ctx: dict[str, Any]) -> None:
     logging.basicConfig(level=logging.INFO)
-    netguard.install(settings.internal_hosts)
+    netguard.install(
+        settings.internal_hosts,
+        settings.egress_hosts,
+        netguard.parse_networks(settings.egress_allow_cidrs),
+    )
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     ctx["store"] = Store(ctx["redis"], settings.file_ttl_sec)
     ctx["router"] = build_router(settings)

@@ -1,8 +1,11 @@
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
+from app.core import netguard
 from app.core.errors import EngineError, ErrorCode
 from app.engines.base import DownloadOptions, ProgressCallback, is_http_url
 from app.engines.http_download import stream_to_file
@@ -90,29 +93,44 @@ class CobaltEngine:
         async with self._client() as client:
             data = await self._resolve(client, url, opts.preset)
             if data["status"] != "picker":
-                path = await stream_to_file(
-                    client,
-                    data["url"],
-                    opts.dest_dir,
-                    max_bytes=opts.max_filesize_bytes,
-                    on_progress=on_progress,
-                    filename=data.get("filename"),
-                )
-                return [path]
+                return [
+                    await self._fetch(
+                        client, data["url"], opts, on_progress, filename=data.get("filename")
+                    )
+                ]
             items = [item for item in data.get("picker") or [] if item.get("url")]
             if not items:
                 raise EngineError(ErrorCode.EXTRACTION_FAILED, "cobalt returned an empty picker")
             return [
-                await stream_to_file(
-                    client,
-                    item["url"],
-                    opts.dest_dir,
-                    max_bytes=opts.max_filesize_bytes,
-                    on_progress=on_progress,
-                    name_prefix=f"{index:02d}_",
+                await self._fetch(
+                    client, item["url"], opts, on_progress, name_prefix=f"{index:02d}_"
                 )
                 for index, item in enumerate(items, start=1)
             ]
+
+    async def _fetch(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        opts: DownloadOptions,
+        on_progress: ProgressCallback,
+        *,
+        filename: str | None = None,
+        name_prefix: str = "",
+    ) -> Path:
+        # Tunnels are served by cobalt itself. Redirect and picker URLs come from the site's
+        # API, so they are fetched like any user-supplied URL.
+        own = urlsplit(url)[:2] == urlsplit(self._base_url)[:2]
+        with nullcontext() if own else netguard.untrusted():
+            return await stream_to_file(
+                client,
+                url,
+                opts.dest_dir,
+                max_bytes=opts.max_filesize_bytes,
+                on_progress=on_progress,
+                filename=filename,
+                name_prefix=name_prefix,
+            )
 
     async def _resolve(self, client: httpx.AsyncClient, url: str, preset: Preset) -> dict[str, Any]:
         body = {
