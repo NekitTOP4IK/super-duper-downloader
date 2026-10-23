@@ -44,6 +44,8 @@ export function Preview({ info, maxItems, children }: Props) {
             {t("input.playlist", { n: count })}
             {count > maxItems ? ` · ${t("input.playlistLimit", { max: maxItems })}` : ""}
           </div>
+        ) : count > 1 ? (
+          <div className="mute">{t("jobs.files", { n: count })}</div>
         ) : null}
         <div className="row">{children}</div>
       </div>

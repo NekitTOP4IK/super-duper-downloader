@@ -151,6 +151,28 @@ def test_info_to_media_playlist_respects_limit():
     assert media.count == 5
 
 
+def test_info_to_media_post_with_several_videos_is_one_item():
+    info = {
+        "_type": "playlist",
+        "title": "Post",
+        "uploader": "U",
+        "entries": [
+            {
+                "url": "https://cdn.example/1.mp4",
+                "thumbnail": "https://i.example/1.jpg",
+                "formats": [{"vcodec": "avc1", "height": 720}],
+            },
+            {"url": "https://cdn.example/2.mp4", "formats": [{"vcodec": "avc1", "height": 1080}]},
+        ],
+    }
+    media = info_to_media("https://site.example/p/1", info, 50)
+    assert media.kind is MediaKind.SINGLE
+    assert (media.title, media.uploader, media.count) == ("Post", "U", 2)
+    assert media.thumbnail == "https://i.example/1.jpg"
+    assert media.presets == [B, P1080, P720, P480, A]
+    assert media.entries == []
+
+
 @pytest.mark.parametrize(
     "message, code",
     [
@@ -365,6 +387,48 @@ async def test_download_percent_does_not_go_back_when_estimate_grows(fake_ydl, o
     progress = []
     await YtDlpEngine().download("https://v.example", opts, progress.append)
     assert [p.percent for p in progress] == [50.0, 50.0, 90.0]
+
+
+def _item(position, count):
+    return {
+        "requested_formats": [{"format_id": "f"}],
+        "playlist_autonumber": position,
+        "n_entries": count,
+    }
+
+
+async def test_download_of_a_post_returns_every_item(fake_ydl, opts):
+    def behaviour(ydl_opts):
+        hook = ydl_opts["progress_hooks"][0]
+        entries = []
+        for position in (1, 2):
+            ydl_opts["match_filter"](_item(position, 2), incomplete=False)
+            hook(_stream("f", 100, 200))
+            hook(_stream("f", 200, 200))
+            path = opts.dest_dir / f"{position}.mp4"
+            path.write_bytes(b"x")
+            entries.append({"requested_downloads": [{"filepath": str(path)}]})
+        return {"_type": "playlist", "entries": entries}
+
+    fake_ydl.behaviour = behaviour
+    progress = []
+    files = await YtDlpEngine().download("https://site.example/p/1", opts, progress.append)
+    assert [f.name for f in files] == ["1.mp4", "2.mp4"]
+    assert [p.percent for p in progress] == [25.0, 50.0, 75.0, 100.0]
+    assert [p.downloaded for p in progress] == [100, 200, 300, 400]
+
+
+async def test_download_size_limit_counts_every_item_of_a_post(fake_ydl, opts):
+    def behaviour(ydl_opts):
+        for position in (1, 2):
+            ydl_opts["match_filter"](_item(position, 2), incomplete=False)
+            ydl_opts["progress_hooks"][0](_stream("f", 600, 600))
+        return {}
+
+    fake_ydl.behaviour = behaviour
+    with pytest.raises(EngineError) as info:
+        await YtDlpEngine().download("https://site.example/p/1", opts, lambda p: None)
+    assert info.value.code is ErrorCode.TOO_LARGE
 
 
 async def test_download_size_limit_counts_all_streams(fake_ydl, opts):

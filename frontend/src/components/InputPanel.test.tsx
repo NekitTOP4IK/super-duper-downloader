@@ -49,6 +49,23 @@ describe("InputPanel", () => {
     await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue(""));
   });
 
+  it("says how many files a post with several videos holds", async () => {
+    mockProbe({
+      kind: "single",
+      url: "https://www.instagram.com/p/a/",
+      title: "Post",
+      thumbnail: null,
+      duration: null,
+      uploader: null,
+      presets: ["best", "audio"],
+      count: 3,
+      entries: [],
+    });
+    const { user } = setup();
+    await user.type(screen.getByRole("textbox"), "https://www.instagram.com/p/a/");
+    expect(await screen.findByText("3 files")).toBeInTheDocument();
+  });
+
   it("shows why a link cannot be downloaded", async () => {
     mockProbe({ detail: { code: "PRIVATE", message: "login" } }, 422);
     const { user } = setup();

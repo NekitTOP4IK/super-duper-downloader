@@ -111,7 +111,10 @@ def available_presets(info: dict[str, Any]) -> list[Preset]:
 
 def info_to_media(url: str, info: dict[str, Any], playlist_limit: int) -> MediaInfo:
     if info.get("_type") in ("playlist", "multi_video"):
-        entries = [entry for entry in map(_entry, info.get("entries") or []) if entry]
+        items = [entry for entry in info.get("entries") or [] if entry]
+        if any(item.get("formats") for item in items):
+            return _post(url, info, items)
+        entries = [entry for entry in map(_entry, items) if entry]
         return MediaInfo(
             kind=MediaKind.PLAYLIST,
             url=url,
@@ -129,6 +132,21 @@ def info_to_media(url: str, info: dict[str, Any], playlist_limit: int) -> MediaI
         duration=info.get("duration"),
         uploader=info.get("uploader") or info.get("channel"),
         presets=available_presets(info),
+    )
+
+
+def _post(url: str, info: dict[str, Any], items: list[dict[str, Any]]) -> MediaInfo:
+    # Videos of a post, such as an Instagram carousel, come already extracted and have no pages
+    # of their own to queue, so the post downloads as one item with several files.
+    presets = {preset for item in items for preset in available_presets(item)}
+    return MediaInfo(
+        kind=MediaKind.SINGLE,
+        url=url,
+        title=info.get("title"),
+        thumbnail=_thumbnail(info) or next(filter(None, map(_thumbnail, items)), None),
+        uploader=info.get("uploader") or info.get("channel"),
+        presets=[preset for preset in Preset if preset in presets],
+        count=len(items),
     )
 
 
@@ -235,6 +253,7 @@ class YtDlpEngine:
             "outtmpl": {"default": "%(title).150B [%(id).64B].%(ext)s"},
             "paths": {"home": str(opts.dest_dir), "temp": str(opts.dest_dir / ".part")},
             "windowsfilenames": True,
+            "playlist_items": f"1-{self._playlist_limit}",
             "max_filesize": opts.max_filesize_bytes,
             "match_filter": match_filter,
             "progress_hooks": [progress_hook],
@@ -250,9 +269,11 @@ class YtDlpEngine:
         if violations:
             raise EngineError(violations[0])
         files = [
-            Path(item["filepath"])
-            for item in info.get("requested_downloads") or []
-            if item.get("filepath")
+            Path(download["filepath"])
+            for item in [info, *(info.get("entries") or [])]
+            if item
+            for download in item.get("requested_downloads") or []
+            if download.get("filepath")
         ]
         existing = [path for path in files if path.exists()]
         if existing:
@@ -264,20 +285,24 @@ class YtDlpEngine:
 
 
 class _Streams:
-    """Adds up the streams of one download: yt-dlp fetches video and audio one after another."""
+    """Adds up what one download fetches. yt-dlp gets video and audio one after another, and
+    the videos of a post one after another too."""
 
     def __init__(self) -> None:
         self._planned: dict[str, int | None] = {}
         self._seen: dict[str, tuple[int, int | None]] = {}
+        self._earlier = 0
+        self._position = (1, 1)
         self._percent = 0.0
 
     def plan(self, info: dict[str, Any]) -> None:
+        self._earlier += sum(downloaded for downloaded, _ in self._seen.values())
         self._planned = {
             str(fmt.get("format_id")): _size(fmt.get("filesize") or fmt.get("filesize_approx"))
             for fmt in info.get("requested_formats") or [info]
         }
         self._seen = {}
-        self._percent = 0.0
+        self._position = (info.get("playlist_autonumber") or 1, info.get("n_entries") or 1)
 
     def update(self, status: dict[str, Any]) -> Progress:
         current = str((status.get("info_dict") or {}).get("format_id"))
@@ -289,16 +314,20 @@ class _Streams:
         sizes += [size for fmt, size in self._planned.items() if fmt not in self._seen]
         done = sum(downloaded for downloaded, _ in self._seen.values())
         total = sum(sizes) if all(sizes) else None
-        speed = status.get("speed")
+        position, count = self._position
         if total:
+            share = (position - 1 + min(1.0, done / total)) / count
             # Fragmented streams only have a size estimate, which shifts as fragments arrive.
-            self._percent = max(self._percent, min(100.0, round(done * 100 / total, 1)))
+            self._percent = max(self._percent, round(share * 100, 1))
+        speed = status.get("speed")
+        eta = max(0, total - done) / speed if total and speed else status.get("eta")
         return Progress(
             percent=self._percent if total else None,
             speed=speed,
-            eta=max(0, total - done) / speed if total and speed else status.get("eta"),
-            downloaded=done,
-            total=total,
+            # Time and size left are known for the video being fetched, not for the whole post.
+            eta=eta if count == 1 else None,
+            downloaded=self._earlier + done,
+            total=total if count == 1 else None,
         )
 
 
