@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     probe_timeout_sec: int = 30
     probe_cache_sec: int = 900
     file_ttl_hours: int = 6
+    rate_probes_per_minute: int = 30
+    rate_downloads_per_hour: int = 100
 
     @property
     def file_ttl_sec(self) -> int:

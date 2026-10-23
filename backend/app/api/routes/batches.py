@@ -66,6 +66,9 @@ async def _create(
     truncated = len(urls) > settings.max_batch_urls
     urls = urls[: settings.max_batch_urls]
     await guards.ensure_download_capacity(settings, queue)
+    await guards.ensure_within_rate(
+        store, requester, "download", len(urls), settings.rate_downloads_per_hour, 3600
+    )
     batch, jobs = await store.create_batch(preset, urls, owner_id=requester.id)
     for job in jobs:
         await queue.enqueue_download(job.id)

@@ -39,8 +39,8 @@ export function useProbe(url: string | null): ProbeState {
       } catch (error) {
         if (controller.signal.aborted) return;
         const failure = error instanceof ApiError ? error : new ApiError(0, "UNKNOWN", String(error));
-        // Busy or unreachable servers are worth asking again; a failed extraction is not.
-        if (!["BUSY", "OFFLINE", "PROBE_TIMEOUT"].includes(failure.code)) cache.set(url, failure);
+        // Busy, unreachable or rate-limited servers are worth asking again; a failed extraction is not.
+        if (!["BUSY", "OFFLINE", "PROBE_TIMEOUT", "RATE_LIMITED"].includes(failure.code)) cache.set(url, failure);
         setState(settled(url, failure));
       }
     }, DEBOUNCE_MS);

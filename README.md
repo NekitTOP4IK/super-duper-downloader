@@ -79,9 +79,9 @@ The site opens at <http://localhost>. To serve it on a domain, set `SITE_ADDRESS
 443 are reachable from the internet.
 
 > [!WARNING]
-> There are no accounts or per-user limits yet. Anyone who can open the page can
-> download through your server, using its bandwidth and disk. The limits below apply to
-> everyone together.
+> There are no accounts yet. Anyone who can open the page can download through your
+> server, using its bandwidth and disk, held back only by the per-address rate limits
+> below. The other limits apply to everyone together.
 
 ### Behind another web server
 
@@ -96,7 +96,10 @@ services:
 ```
 
 Then proxy the domain to `127.0.0.1:18090` from that server, with response buffering
-off (`proxy_buffering off` in nginx): download progress comes as an event stream.
+off (`proxy_buffering off` in nginx): download progress comes as an event stream. Pass
+the client address on in `X-Forwarded-For`
+(`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for`), or all visitors share
+one rate limit.
 
 ## Configuration
 
@@ -118,6 +121,8 @@ Everything lives in `.env`.
 | `PROBE_CONCURRENCY` | `10` | Previews running at once |
 | `JOB_TIMEOUT_SEC` | `1800` | Time one download may take |
 | `FILE_TTL_HOURS` | `6` | How long finished files are kept |
+| `RATE_PROBES_PER_MINUTE` | `30` | Previews one address may ask for per minute, `0` for no limit |
+| `RATE_DOWNLOADS_PER_HOUR` | `100` | Links one address may send to download per hour, `0` for no limit |
 
 ### Sites that refuse servers
 

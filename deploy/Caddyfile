@@ -1,3 +1,13 @@
+{
+	servers {
+		# A proxy in front, such as nginx on the same host, reaches Caddy from a private
+		# address. Strict mode takes the client from the right of X-Forwarded-For, past what
+		# a client could put there itself.
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+	}
+}
+
 {$SITE_ADDRESS::80} {
 	header {
 		# Thumbnails come straight from the sites' CDNs, hence https: for images.
@@ -12,7 +22,9 @@
 		request_body {
 			max_size 2MB
 		}
-		reverse_proxy api:8000
+		reverse_proxy api:8000 {
+			header_up X-Real-IP {client_ip}
+		}
 	}
 
 	handle {

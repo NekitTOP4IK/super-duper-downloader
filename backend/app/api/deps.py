@@ -13,10 +13,14 @@ ID_PATTERN = r"^[A-Za-z0-9_-]{8,64}$"
 @dataclass(frozen=True)
 class Requester:
     id: str | None = None
+    ip: str | None = None
 
 
-async def get_requester() -> Requester:
-    return Requester()
+async def get_requester(request: Request) -> Requester:
+    # Caddy sets X-Real-IP to the client it resolved past trusted proxies, and the API is only
+    # reachable through Caddy.
+    client = request.client.host if request.client else None
+    return Requester(ip=request.headers.get("x-real-ip") or client)
 
 
 def _store(request: Request) -> Store:

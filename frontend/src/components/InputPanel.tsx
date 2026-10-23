@@ -9,7 +9,7 @@ import { Preview } from "./Preview";
 import { Spinner } from "./Spinner";
 
 const MAX_FILE_BYTES = 1_000_000;
-const RETRIABLE = new Set(["BUSY", "OFFLINE", "PROBE_TIMEOUT", "NETWORK", "UNKNOWN"]);
+const RETRIABLE = new Set(["BUSY", "OFFLINE", "PROBE_TIMEOUT", "RATE_LIMITED", "NETWORK", "UNKNOWN"]);
 
 interface Props {
   limits: Limits;

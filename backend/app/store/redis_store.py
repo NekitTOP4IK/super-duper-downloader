@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+import time
 from datetime import UTC, datetime, timedelta
 
 from redis.asyncio import Redis
@@ -29,6 +30,10 @@ def _job_key(job_id: str) -> str:
 
 def _probe_key(url: str) -> str:
     return f"probe:{hashlib.sha256(url.encode()).hexdigest()}"
+
+
+def _use_key(key: str, window: int) -> str:
+    return f"use:{key}:{window}"
 
 
 def _ts(moment: datetime) -> int:
@@ -118,6 +123,17 @@ class Store:
             pipe.expireat(_job_key(job.id), _ts(job.expires_at))
             pipe.publish(events_channel(job.batch_id), payload)
             await pipe.execute()
+
+    async def add_use(self, key: str, amount: int, window_sec: int) -> tuple[int, int]:
+        """Adds to what key used in the current fixed window. Returns the total so far and the
+        seconds left until the window ends."""
+        now = int(time.time())
+        window_key = _use_key(key, now // window_sec)
+        async with self._redis.pipeline(transaction=True) as pipe:
+            pipe.incrby(window_key, amount)
+            pipe.expire(window_key, window_sec)
+            used, _ = await pipe.execute()
+        return used, window_sec - now % window_sec
 
     async def get_probe(self, url: str) -> MediaInfo | None:
         raw = await self._redis.get(_probe_key(url))
