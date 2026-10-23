@@ -10,7 +10,9 @@ from app.core.errors import EngineError, ErrorCode
 from app.engines.base import ProgressCallback
 from app.models import Progress
 
-USER_AGENT = "Mozilla/5.0 (compatible; super-duper-downloader)"
+# Sites such as Wikimedia reject anonymous or browser-imitating clients from servers and
+# ask for a descriptive agent with a contact link instead.
+USER_AGENT = "super-duper-downloader/0.1 (+https://github.com/NekitTOP4IK/super-duper-downloader)"
 PAGE_TYPES = frozenset({"text/html", "application/xhtml+xml"})
 MAX_NAME_LENGTH = 150
 
