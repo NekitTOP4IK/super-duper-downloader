@@ -5,6 +5,7 @@ from urllib.parse import unquote, urlsplit
 
 import httpx
 
+from app.core import netguard
 from app.core.errors import EngineError, ErrorCode
 from app.engines.base import ProgressCallback
 from app.models import Progress
@@ -96,8 +97,14 @@ async def stream_to_file(
                         Progress(percent=_percent(done, total), downloaded=done, total=total)
                     )
     except httpx.TransportError as exc:
-        raise EngineError(ErrorCode.NETWORK, f"network error: {exc}") from exc
+        raise transport_error(exc) from exc
     return path
+
+
+def transport_error(exc: httpx.TransportError) -> EngineError:
+    if netguard.is_blocked(exc):
+        return EngineError(ErrorCode.FORBIDDEN, netguard.BLOCKED_MESSAGE)
+    return EngineError(ErrorCode.NETWORK, f"network error: {exc}")
 
 
 def _int_header(response: httpx.Response, name: str) -> int | None:

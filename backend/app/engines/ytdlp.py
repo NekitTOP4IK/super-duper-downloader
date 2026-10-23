@@ -7,6 +7,7 @@ from yt_dlp import YoutubeDL
 from yt_dlp.utils import GeoRestrictedError, UnsupportedError
 
 from app.core.errors import EngineError, ErrorCode
+from app.core.netguard import BLOCKED_MESSAGE
 from app.engines.base import DownloadOptions, ProgressCallback, is_http_url
 from app.models import MediaInfo, MediaKind, PlaylistEntry, Preset, Progress
 
@@ -20,6 +21,7 @@ PRESET_FORMATS = {
 _HEIGHT_PRESETS = ((Preset.P1080, 1080), (Preset.P720, 720), (Preset.P480, 480))
 
 _ERROR_PATTERNS = (
+    (ErrorCode.FORBIDDEN, (BLOCKED_MESSAGE,)),
     (
         ErrorCode.BLOCKED,
         (

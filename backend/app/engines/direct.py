@@ -2,13 +2,13 @@ from pathlib import Path
 
 import httpx
 
-from app.core.errors import EngineError, ErrorCode
 from app.engines.base import DownloadOptions, ProgressCallback, is_http_url
 from app.engines.http_download import (
     USER_AGENT,
     ensure_ok,
     filename_from_response,
     stream_to_file,
+    transport_error,
 )
 from app.models import MediaInfo, MediaKind, Preset
 
@@ -45,7 +45,7 @@ class DirectEngine:
                 ensure_ok(response, reject_pages=True)
                 name = filename_from_response(response)
         except httpx.TransportError as exc:
-            raise EngineError(ErrorCode.NETWORK, f"network error: {exc}") from exc
+            raise transport_error(exc) from exc
         return MediaInfo(kind=MediaKind.SINGLE, url=url, title=name, presets=[Preset.BEST])
 
     async def download(

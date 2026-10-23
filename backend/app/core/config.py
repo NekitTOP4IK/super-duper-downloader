@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -33,6 +34,11 @@ class Settings(BaseSettings):
     @property
     def max_filesize_bytes(self) -> int:
         return self.max_filesize_mb * 1024 * 1024
+
+    @property
+    def internal_hosts(self) -> set[str]:
+        urls = (self.redis_url, self.cobalt_url, self.proxy_url)
+        return {host for url in urls if url and (host := urlsplit(url).hostname)}
 
 
 @lru_cache

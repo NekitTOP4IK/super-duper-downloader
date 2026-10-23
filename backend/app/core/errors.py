@@ -10,6 +10,7 @@ class ErrorCode(StrEnum):
     GEO_BLOCKED = "GEO_BLOCKED"
     TOO_LONG = "TOO_LONG"
     TOO_LARGE = "TOO_LARGE"
+    FORBIDDEN = "FORBIDDEN"
     INTERNAL = "INTERNAL"
 
 

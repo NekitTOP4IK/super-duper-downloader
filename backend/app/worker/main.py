@@ -4,6 +4,7 @@ from typing import Any
 from arq import cron, func
 from arq.connections import RedisSettings
 
+from app.core import netguard
 from app.core.config import get_settings
 from app.engines.factory import build_router
 from app.queue import DOWNLOAD_QUEUE, PROBE_QUEUE, ArqTaskQueue
@@ -17,6 +18,7 @@ redis_settings = RedisSettings.from_dsn(settings.redis_url)
 
 async def startup(ctx: dict[str, Any]) -> None:
     logging.basicConfig(level=logging.INFO)
+    netguard.install(settings.internal_hosts)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     ctx["store"] = Store(ctx["redis"], settings.file_ttl_sec)
     ctx["router"] = build_router(settings)
