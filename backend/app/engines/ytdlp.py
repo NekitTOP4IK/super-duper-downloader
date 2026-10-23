@@ -20,7 +20,9 @@ PRESET_FORMATS = {
 }
 _HEIGHT_PRESETS = ((Preset.P1080, 1080), (Preset.P720, 720), (Preset.P480, 480))
 # Within one resolution prefer H.264 + AAC: AV1 and Opus still fail on older phones and TVs.
-FORMAT_SORT = ["res", "vcodec:h264", "acodec:aac", "ext:mp4:m4a"]
+# Then a whole file over HLS fragments: YouTube offers both for one stream, and the whole file
+# has its size known up front and downloaded about twice as fast in a test.
+FORMAT_SORT = ["res", "vcodec:h264", "acodec:aac", "proto", "ext:mp4:m4a"]
 # With mkv listed, yt-dlp picks it whenever a stream's codec is unknown, as with X's HLS audio.
 # ffmpeg muxes every common codec into mp4, so mp4 is the fallback instead.
 MERGE_FORMAT = "webm/mp4"

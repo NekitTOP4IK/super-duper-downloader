@@ -27,7 +27,7 @@ def test_format_for():
     assert format_for(B) == "bv*+ba/b"
 
 
-def _format(format_id, vcodec, acodec, height, ext):
+def _format(format_id, vcodec, acodec, height, ext, protocol="https"):
     return {
         "format_id": format_id,
         "url": f"https://cdn.example/{format_id}",
@@ -35,7 +35,7 @@ def _format(format_id, vcodec, acodec, height, ext):
         "acodec": acodec,
         "height": height,
         "ext": ext,
-        "protocol": "https",
+        "protocol": protocol,
     }
 
 
@@ -72,6 +72,16 @@ def _select(formats, **params):
 def test_format_sort_prefers_compatible_codecs_without_losing_resolution(preset, expected):
     info = _select(_FORMATS, format=format_for(preset), format_sort=FORMAT_SORT)
     assert info["format_id"] == expected
+
+
+def test_format_sort_prefers_a_whole_file_to_fragments_of_the_same_quality():
+    formats = [
+        _format("hls-1440", "vp09.00.50.08", "none", 1440, "mp4", protocol="m3u8_native"),
+        _format("https-1440", "vp9", "none", 1440, "webm"),
+        _format("aac", "none", "mp4a.40.2", None, "m4a"),
+    ]
+    info = _select(formats, format=format_for(B), format_sort=FORMAT_SORT)
+    assert info["format_id"] == "https-1440+aac"
 
 
 @pytest.mark.parametrize(
