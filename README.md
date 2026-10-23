@@ -10,8 +10,9 @@ plus plain file links.
   plays everywhere.
 - Bulk mode takes up to 50 links at once, pasted or loaded from a `.txt`, and offers
   the whole batch as a zip.
-- Playlists expand into separate downloads. Progress streams live, and the list of
-  downloads survives a page reload.
+- Playlists expand into separate downloads, while a post with several videos, such as
+  an Instagram carousel, comes as one download with a file per video. Progress streams
+  live, and the list of downloads survives a page reload.
 - A terminal-style interface in Russian or English, with 23 color themes and four
   monospace fonts.
 
@@ -55,6 +56,14 @@ Everything lives in `.env`.
 | `PROBE_CONCURRENCY` | `10` | Previews running at once |
 | `JOB_TIMEOUT_SEC` | `1800` | Time one download may take |
 | `FILE_TTL_HOURS` | `6` | How long finished files are kept |
+
+### Sites that refuse servers
+
+Some sites answer hosting and VPN networks with a block page instead of the media.
+Reddit sent one to every client tried from such an address, browser imitation included,
+and Bilibili, Rumble and Vimeo refused it too. A residential proxy in `PROXY_URL` helps
+yt-dlp and plain downloads. cobalt does not read that variable: it takes an HTTP proxy
+from `HTTP_PROXY` or `HTTPS_PROXY` set in its own `environment` in `docker-compose.yml`.
 
 ## How it works
 
