@@ -3,7 +3,7 @@ from contextlib import AbstractAsyncContextManager
 
 from fastapi import FastAPI
 
-from app.api.routes import batches, files, probe
+from app.api.routes import batches, files, limits, probe
 from app.core.config import Settings
 from app.queue import TaskQueue
 from app.store.redis_store import Store
@@ -27,4 +27,5 @@ def create_app(
     app.include_router(probe.router)
     app.include_router(batches.router)
     app.include_router(files.router)
+    app.include_router(limits.router)
     return app

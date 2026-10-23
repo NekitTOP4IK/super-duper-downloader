@@ -1,14 +1,15 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_LIMITS, type Limits } from "../api/client";
 import { I18nProvider } from "../i18n/I18nContext";
 import { InputPanel } from "./InputPanel";
 
-function setup(onSubmit = vi.fn().mockResolvedValue(undefined)) {
+function setup(onSubmit = vi.fn().mockResolvedValue(undefined), limits: Limits = DEFAULT_LIMITS) {
   localStorage.setItem("sdd.lang", "en");
   render(
     <I18nProvider>
-      <InputPanel onSubmit={onSubmit} />
+      <InputPanel limits={limits} onSubmit={onSubmit} />
     </I18nProvider>,
   );
   return { onSubmit, user: userEvent.setup() };
@@ -86,13 +87,16 @@ describe("InputPanel", () => {
     expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true");
   });
 
-  it("warns that only the first 50 links are taken", async () => {
-    const { user } = setup();
+  it("takes no more links than the server allows", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const { user } = setup(onSubmit, { ...DEFAULT_LIMITS, max_batch_urls: 3 });
     await user.click(screen.getByRole("switch"));
-    const text = Array.from({ length: 52 }, (_, i) => `https://x.example/${i}`).join("\n");
+    const text = Array.from({ length: 5 }, (_, i) => `https://x.example/${i}`).join("\n");
     fireEvent.change(screen.getByRole("textbox"), { target: { value: text } });
-    expect(screen.getByText(/52 links · only the first 50 will be taken/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "download 50" })).toBeInTheDocument();
+    expect(screen.getByText(/5 links · only the first 3 will be taken/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "download 3" }));
+    expect(onSubmit.mock.calls[0]?.[0]).toHaveLength(3);
   });
 
   it("reports server errors from submitting", async () => {

@@ -22,3 +22,8 @@ class BatchCreated(BaseModel):
 class BatchState(BaseModel):
     batch: Batch
     jobs: list[Job]
+
+
+class Limits(BaseModel):
+    max_batch_urls: int
+    max_playlist_items: int

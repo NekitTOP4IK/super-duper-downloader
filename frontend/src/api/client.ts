@@ -67,6 +67,13 @@ export interface BatchCreated {
   truncated: boolean;
 }
 
+export interface Limits {
+  max_batch_urls: number;
+  max_playlist_items: number;
+}
+
+export const DEFAULT_LIMITS: Limits = { max_batch_urls: 50, max_playlist_items: 50 };
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -106,6 +113,7 @@ export const api = {
   createBatch: (urls: string[], preset: Preset) =>
     request<BatchCreated>("/api/batches", { method: "POST", body: JSON.stringify({ urls, preset }) }),
   batch: (id: string) => request<BatchState>(`/api/batches/${id}`),
+  limits: () => request<Limits>("/api/limits"),
   eventsUrl: (id: string) => `/api/batches/${id}/events`,
   fileUrl: (jobId: string, index: number) => `/api/files/${jobId}?i=${index}`,
   zipUrl: (batchId: string) => `/api/batches/${batchId}/zip`,

@@ -1,5 +1,5 @@
 import { type ClipboardEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
-import { ApiError, PRESETS, type Preset } from "../api/client";
+import { ApiError, type Limits, PRESETS, type Preset } from "../api/client";
 import { useProbe } from "../hooks/useProbe";
 import { useI18n } from "../i18n/I18nContext";
 import { extractUrls } from "../lib/urls";
@@ -8,16 +8,17 @@ import { Presets } from "./Presets";
 import { Preview } from "./Preview";
 import { Spinner } from "./Spinner";
 
-export const MAX_LINKS = 50;
 const MAX_FILE_BYTES = 1_000_000;
 const RETRIABLE = new Set(["BUSY", "OFFLINE", "PROBE_TIMEOUT", "NETWORK", "UNKNOWN"]);
 
 interface Props {
+  limits: Limits;
   onSubmit: (urls: string[], preset: Preset) => Promise<void>;
 }
 
-export function InputPanel({ onSubmit }: Props) {
+export function InputPanel({ limits, onSubmit }: Props) {
   const { t } = useI18n();
+  const maxLinks = limits.max_batch_urls;
   const [bulk, setBulk] = useState(false);
   const [single, setSingle] = useState("");
   const [bulkText, setBulkText] = useState("");
@@ -57,7 +58,7 @@ export function InputPanel({ onSubmit }: Props) {
     setBusy(true);
     setError(null);
     try {
-      await onSubmit(urls.slice(0, MAX_LINKS), chosen);
+      await onSubmit(urls.slice(0, maxLinks), chosen);
       if (bulk) setBulkText("");
       else setSingle("");
     } catch (failure) {
@@ -158,7 +159,7 @@ ${text}` : text));
   return (
     <section className={bulk ? "panel bulk" : "panel"} aria-label={t("input.hint")}>
       <div className="panel-top">
-        <span>{bulk ? t("input.hintBulk", { max: MAX_LINKS }) : t("input.hint")}</span>
+        <span>{bulk ? t("input.hintBulk", { max: maxLinks }) : t("input.hint")}</span>
         <button
           type="button"
           role="switch"
@@ -178,7 +179,7 @@ ${text}` : text));
             rows={6}
             spellCheck={false}
             placeholder={t("input.placeholderBulk")}
-            aria-label={t("input.hintBulk", { max: MAX_LINKS })}
+            aria-label={t("input.hintBulk", { max: maxLinks })}
             onChange={(event) => setBulkText(event.target.value)}
             onKeyDown={onBulkKey}
           />
@@ -229,7 +230,7 @@ ${text}` : text));
         <div className="row">
           <span className="mute counter" aria-live="polite">
             {bulkUrls.length ? t("input.links", { n: bulkUrls.length }) : t("input.noLinks")}
-            {bulkUrls.length > MAX_LINKS ? ` · ${t("input.truncated", { max: MAX_LINKS })}` : ""}
+            {bulkUrls.length > maxLinks ? ` · ${t("input.truncated", { max: maxLinks })}` : ""}
           </span>
           <span className="mute keys">{t("input.keysBulk")}</span>
         </div>
@@ -240,7 +241,7 @@ ${text}` : text));
           <span className="mute">{t("input.forAll")}</span>
           <Presets options={PRESETS} value={chosen} onChange={setPreset} label={t("input.forAll")} />
           {goButton(
-            t("input.downloadN", { n: Math.min(bulkUrls.length, MAX_LINKS) }),
+            t("input.downloadN", { n: Math.min(bulkUrls.length, maxLinks) }),
             bulkUrls,
           )}
         </div>
@@ -270,7 +271,7 @@ ${text}` : text));
       ) : null}
 
       {!bulk && probe.status === "ready" ? (
-        <Preview info={probe.info} maxItems={MAX_LINKS}>
+        <Preview info={probe.info} maxItems={limits.max_playlist_items}>
           <Presets options={offered} value={chosen} onChange={setPreset} />
           {goButton(t("input.download"), [probe.url])}
         </Preview>

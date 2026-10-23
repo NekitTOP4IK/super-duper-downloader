@@ -111,3 +111,11 @@ def test_asgi_entrypoint_exposes_routes():
 
     paths = set(app.openapi()["paths"])
     assert {"/api/probe", "/api/batches", "/api/files/{job_id}"} <= paths
+
+
+async def test_limits_follow_settings(client, settings):
+    settings.max_batch_urls = 20
+    settings.max_playlist_items = 100
+    response = await client.get("/api/limits")
+    assert response.status_code == 200
+    assert response.json() == {"max_batch_urls": 20, "max_playlist_items": 100}

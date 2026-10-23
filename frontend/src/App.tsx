@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { type Preset, api } from "./api/client";
+import { DEFAULT_LIMITS, type Preset, api } from "./api/client";
 import { Downloads } from "./components/Downloads";
 import { Footer } from "./components/Footer";
 import { Header } from "./components/Header";
@@ -16,6 +16,12 @@ function isTyping(target: EventTarget | null): boolean {
 export function App() {
   const { views, add, remove } = useBatches();
   const [picking, setPicking] = useState(false);
+  const [limits, setLimits] = useState(DEFAULT_LIMITS);
+
+  useEffect(() => {
+    // The defaults match the server's own, so a failed request changes nothing visible.
+    api.limits().then(setLimits, () => {});
+  }, []);
 
   const submit = useCallback(
     async (urls: string[], preset: Preset) => {
@@ -46,7 +52,7 @@ export function App() {
     <div className="page">
       <Header onOpenThemes={() => setPicking(true)} />
       <main>
-        <InputPanel onSubmit={submit} />
+        <InputPanel limits={limits} onSubmit={submit} />
         <Downloads views={views} onRemove={remove} />
       </main>
       <Footer />
