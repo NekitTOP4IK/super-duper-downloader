@@ -1,14 +1,26 @@
 <!doctype html>
-<html lang="en">
+<!-- Caddy fills this in per request: the address the page was opened at, and the language the
+     visitor or a link preview bot asked for. {{- $ru := hasPrefix `ru` (lower (.Req.Header.Get `Accept-Language`)) -}}
+{{- $scheme := `http` -}}{{- if or .Req.TLS (eq (.Req.Header.Get `X-Forwarded-Proto`) `https`) -}}{{- $scheme = `https` -}}{{- end -}}
+{{- $url := printf `%s://%s/` $scheme (html .Host) -}}
+{{- $desc := `Paste a link, get the file. Videos, music and posts from YouTube, TikTok, Instagram, X, VK and hundreds more sites.` -}}
+{{- if $ru -}}{{- $desc = `Вставь ссылку — получи файл. Видео, музыка и посты с YouTube, TikTok, Instagram, X, VK и сотен других сайтов.` -}}{{- end -}} -->
+<html lang="{{if $ru}}ru{{else}}en{{end}}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#1a1b26" />
-    <meta name="description" content="Paste a link, get the file. Videos, music and posts from YouTube, TikTok, Instagram, X and hundreds more sites." />
-    <meta property="og:title" content="super-duper-downloader" />
-    <meta property="og:description" content="Paste a link, get the file." />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>super-duper-downloader</title>
+    <meta name="description" content="{{$desc}}" />
+    <link rel="canonical" href="{{$url}}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="super-duper-downloader" />
+    <meta property="og:title" content="super-duper-downloader" />
+    <meta property="og:description" content="{{$desc}}" />
+    <meta property="og:url" content="{{$url}}" />
+    <meta property="og:locale" content="{{if $ru}}ru_RU{{else}}en_US{{end}}" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <script src="/boot.js"></script>
   </head>
   <body>

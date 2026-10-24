@@ -100,7 +100,8 @@ services:
 (`proxy_buffering off` в nginx): прогресс загрузки идёт потоком событий. Адрес клиента
 передавай в `X-Forwarded-For`
 (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for`), иначе у всех
-посетителей окажется один лимит на всех.
+посетителей окажется один лимит на всех. Адрес сайта для превью ссылок берётся из `Host`
+и `X-Forwarded-Proto`, их тоже передавай.
 
 ## Настройка
 

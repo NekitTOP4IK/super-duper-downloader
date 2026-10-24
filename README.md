@@ -99,7 +99,8 @@ Then proxy the domain to `127.0.0.1:18090` from that server, with response buffe
 off (`proxy_buffering off` in nginx): download progress comes as an event stream. Pass
 the client address on in `X-Forwarded-For`
 (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for`), or all visitors share
-one rate limit.
+one rate limit. Link previews take the site address from `Host` and `X-Forwarded-Proto`,
+so pass those on as well.
 
 ## Configuration
 
