@@ -25,6 +25,7 @@ def test_env_overrides(monkeypatch):
 
 def test_fallback_and_retry_codes():
     assert set(ErrorCode) - FALLBACK_CODES == {
+        ErrorCode.NO_VIDEO,
         ErrorCode.TOO_LONG,
         ErrorCode.TOO_LARGE,
         ErrorCode.FORBIDDEN,

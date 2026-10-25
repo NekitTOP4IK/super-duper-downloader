@@ -2,7 +2,7 @@ from app.core.errors import EngineError, ErrorCode
 from app.engines.router import EngineRouter
 from app.models import FileInfo, JobStatus, MediaInfo, MediaKind, PlaylistEntry, Preset, Progress
 from app.worker.jobs import ProgressReporter, run_job, run_probe
-from tests.fakes import FakeEngine, FakeQueue, single, writes_file
+from tests.fakes import FakeEngine, FakeQueue, make_video, needs_ffmpeg, single, writes_file
 
 URL = "https://example.com/v"
 
@@ -45,6 +45,28 @@ async def test_run_job_downloads_single(store, settings):
     assert saved.progress is None
     assert saved.files == [FileInfo(name="clip.mp4", size=5)]
     assert (settings.data_dir / batch.id / job.id / "clip.mp4").read_bytes() == b"12345"
+
+
+@needs_ffmpeg
+async def test_run_job_turns_videos_into_gifs(store, settings, tmp_path):
+    video = make_video(tmp_path / "source.mp4").read_bytes()
+    engine = FakeEngine(probe=[single()], download=[writes_file("clip.mp4", video)])
+    batch, [job] = await store.create_batch(Preset.GIF, [URL])
+    await run_job(store, router_with(engine), FakeQueue(), settings, job.id)
+    saved = await store.get_job(job.id)
+    assert saved.status is JobStatus.DONE
+    assert [file.name for file in saved.files] == ["clip.gif"]
+    assert not (settings.data_dir / batch.id / job.id / "clip.mp4").exists()
+
+
+@needs_ffmpeg
+async def test_run_job_fails_a_gif_of_something_that_is_not_a_video(store, settings):
+    engine = FakeEngine(probe=[single()], download=[writes_file("song.mp3", b"data")])
+    _, [job] = await store.create_batch(Preset.GIF, [URL])
+    await run_job(store, router_with(engine), FakeQueue(), settings, job.id)
+    saved = await store.get_job(job.id)
+    assert saved.status is JobStatus.FAILED
+    assert saved.error.code is ErrorCode.NO_VIDEO
 
 
 async def test_run_job_records_failure(store, settings):

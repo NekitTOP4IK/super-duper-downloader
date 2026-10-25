@@ -17,7 +17,14 @@ from app.engines.ytdlp import (
 )
 from app.models import MediaKind, Preset
 
-B, P1080, P720, P480, A = Preset.BEST, Preset.P1080, Preset.P720, Preset.P480, Preset.AUDIO
+B, P1080, P720, P480, A, G = (
+    Preset.BEST,
+    Preset.P1080,
+    Preset.P720,
+    Preset.P480,
+    Preset.AUDIO,
+    Preset.GIF,
+)
 
 
 def _format(format_id, vcodec, acodec, height, ext, protocol="https"):
@@ -120,26 +127,39 @@ def test_merged_streams_land_in_a_common_container(video, audio, expected):
     [
         (
             {"formats": [{"vcodec": "avc1", "height": h} for h in (1080, 720, 360)]},
-            [B, P1080, P720, P480, A],
+            [B, P1080, P720, P480, A, G],
         ),
-        ({"formats": [{"vcodec": "avc1", "height": 1080}, {"vcodec": "none"}]}, [B, P1080, A]),
-        ({"formats": [{"vcodec": "avc1", "height": 480}]}, [B, P480, A]),
+        (
+            {"formats": [{"vcodec": "avc1", "height": 1080}, {"vcodec": "none"}]},
+            [B, P1080, A, G],
+        ),
+        ({"formats": [{"vcodec": "avc1", "height": 480}]}, [B, P480, A, G]),
         (
             {
                 "formats": [
                     {"vcodec": "hevc", "width": w, "height": w * 16 // 9} for w in (1080, 720)
                 ]
             },
-            [B, P1080, P720, A],
+            [B, P1080, P720, A, G],
         ),
-        ({"formats": [{"vcodec": "hevc", "width": 576, "height": 1024}]}, [B, A]),
-        ({"formats": [{"vcodec": "avc1", "acodec": "none", "height": 480}]}, [B, P480]),
+        ({"formats": [{"vcodec": "hevc", "width": 576, "height": 1024}]}, [B, A, G]),
+        ({"formats": [{"vcodec": "avc1", "acodec": "none", "height": 480}]}, [B, P480, G]),
         ({"formats": [{"vcodec": "none", "acodec": "opus"}]}, [A]),
-        ({"vcodec": None, "ext": "mp4"}, [B, A]),
+        ({"vcodec": None, "ext": "mp4"}, [B, A, G]),
     ],
 )
 def test_available_presets(info, expected):
     assert available_presets(info) == expected
+
+
+@pytest.mark.parametrize("duration, offered", [(5, True), (40, False)])
+def test_gif_is_offered_only_for_a_video_short_enough(duration, offered):
+    info = {"duration": duration, "formats": [{"vcodec": "avc1", "width": 1920, "height": 1080}]}
+    assert (G in available_presets(info)) is offered
+
+
+def test_gif_takes_a_small_video_without_sound():
+    assert _select(_FORMATS, **format_options(G))["format_id"] == "avc-1080"
 
 
 def test_info_to_media_single():
@@ -154,7 +174,7 @@ def test_info_to_media_single():
     assert media.kind is MediaKind.SINGLE
     assert (media.title, media.duration, media.uploader) == ("T", 12.5, "U")
     assert media.thumbnail == "https://i.example/l.jpg"
-    assert media.presets == [B, P720, A]
+    assert media.presets == [B, P720, A, G]
 
 
 def _video(formats, video_id="x", duration=10):
@@ -183,7 +203,7 @@ _SIZED = [
 
 def test_info_to_media_sizes_each_preset_by_the_streams_it_takes():
     media = info_to_media("https://v.example", _video(_SIZED), 50)
-    assert media.sizes == {B: 1100, P1080: 1100, P720: 700, P480: 400, A: 100}
+    assert media.sizes == {B: 1100, P1080: 1100, P720: 700, P480: 400, A: 100, G: 9_104_000}
 
 
 def test_info_to_media_sizes_an_already_selected_video():
@@ -222,7 +242,7 @@ def test_info_to_media_leaves_unknown_sizes_out():
         _sized("aac", "none", "mp4a.40.2", None, "m4a", filesize=100),
     ]
     media = info_to_media("https://v.example", _video(formats), 50)
-    assert media.sizes == {A: 100}
+    assert media.sizes.keys() == {A, G}
 
 
 def test_info_to_media_sizes_a_post_by_all_its_videos():
@@ -237,6 +257,20 @@ def test_info_to_media_sizes_a_post_by_all_its_videos():
     media = info_to_media("https://site.example/p/1", info, 50)
     assert media.sizes[P720] == 1400
     assert media.sizes[A] == 200
+
+
+def test_info_to_media_sizes_the_gifs_of_a_post_together():
+    entries = [_video(_SIZED, "a", duration=4), _video(_SIZED, "b", duration=6)]
+    each = [info_to_media("https://v.example", entry, 50).sizes[G] for entry in entries]
+    post = info_to_media("https://site.example/p/1", {"_type": "playlist", "entries": entries}, 50)
+    assert post.sizes[G] == sum(each)
+
+
+def test_info_to_media_leaves_out_the_gif_size_of_a_post_with_a_track():
+    entries = [_video(_SIZED, "a", duration=4), _video(_SIZED[3:], "b", duration=6)]
+    post = info_to_media("https://site.example/p/1", {"_type": "playlist", "entries": entries}, 50)
+    assert G in post.presets
+    assert G not in post.sizes
 
 
 def test_info_to_media_playlist_with_flat_entries():
@@ -285,7 +319,7 @@ def test_info_to_media_post_with_several_videos_is_one_item():
     assert media.kind is MediaKind.SINGLE
     assert (media.title, media.uploader, media.count) == ("Post", "U", 2)
     assert media.thumbnail == "https://i.example/1.jpg"
-    assert media.presets == [B, P1080, P720, A]
+    assert media.presets == [B, P1080, P720, A, G]
     assert media.entries == []
 
 

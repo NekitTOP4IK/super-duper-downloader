@@ -112,6 +112,20 @@ describe("InputPanel", () => {
     expect(onSubmit).toHaveBeenCalledWith(["https://a.example/1", "https://b.example/2"], "1080");
   });
 
+  it("offers a GIF of every link in bulk mode", async () => {
+    const { onSubmit, user } = setup();
+    fireEvent.paste(screen.getByRole("textbox"), {
+      clipboardData: { getData: () => "https://x.com/a/status/1\nhttps://x.com/b/status/2" },
+    });
+
+    await user.click(await screen.findByRole("button", { name: "gif" }));
+    await user.click(screen.getByRole("button", { name: "download 2" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      ["https://x.com/a/status/1", "https://x.com/b/status/2"],
+      "gif",
+    );
+  });
+
   it("loads links from a .txt file into bulk mode", async () => {
     const { user } = setup();
     const file = new File(["https://a.example/1\nhttps://b.example/2\nhttps://c.example/3\n"], "links.txt", {

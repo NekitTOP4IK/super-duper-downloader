@@ -14,6 +14,11 @@ plus plain file links.
   tell. A quality is measured on the shorter side, so 720p of a vertical video is
   720x1280. Video comes as H.264 with AAC where the site offers it, so it plays
   everywhere.
+- GIF turns a video into an animation without sound, the way X serves its GIFs as
+  video. It is offered where the GIF is estimated to stay within about 15 MB: up to
+  roughly 5 seconds at 480p and 15 frames per second, up to roughly 17 seconds at 320p
+  and 10. Where the site gives no duration, as X does for its GIFs, the button shows no
+  size. A GIF over 15 MB is made once more at 320p, and fails if that passes 30 MB.
 - Audio is the site's own sound track. Where a site has none apart from the video, the
   sound is copied out of the video without re-encoding.
 - Bulk mode takes up to 50 links at once, pasted or loaded from a `.txt`, and offers

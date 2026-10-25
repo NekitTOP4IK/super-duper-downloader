@@ -13,6 +13,7 @@ class Preset(StrEnum):
     P720 = "720"
     P480 = "480"
     AUDIO = "audio"
+    GIF = "gif"
 
 
 class MediaKind(StrEnum):

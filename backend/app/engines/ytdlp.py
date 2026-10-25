@@ -7,6 +7,7 @@ from typing import Any
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import GeoRestrictedError, UnsupportedError
 
+from app import gif
 from app.core import netguard
 from app.core.errors import EngineError, ErrorCode
 from app.engines.base import DownloadOptions, ProgressCallback, is_http_url
@@ -100,6 +101,9 @@ def format_options(preset: Preset) -> dict[str, Any]:
     """What yt-dlp needs to pick the streams of a preset."""
     if preset is Preset.AUDIO:
         return {"format": "ba/b", "format_sort": _AUDIO_SORT}
+    if preset is Preset.GIF:
+        # A GIF is silent and at most 480p, so it is made from a small video without sound.
+        return {"format": "bv*/b", "format_sort": ["res:480", *_COMPATIBLE]}
     # A height is measured on the shorter side, as yt-dlp's res is, so that "720" of a vertical
     # video means 720x1280. Where nothing is that small, the closest larger stream stands in.
     height = _HEIGHTS.get(preset)
@@ -123,7 +127,18 @@ def available_presets(info: dict[str, Any]) -> list[Preset]:
         if max(sides) >= height and any(0 < side <= height for side in sides)
     ]
     audio = [Preset.AUDIO] if any(f.get("acodec") != "none" for f in formats) else []
-    return [Preset.BEST, *heights, *audio]
+    # Sites such as X give no duration for their GIFs; the GIF is then judged once it is made.
+    fits = not info.get("duration") or gif_size(info) is not None
+    return [Preset.BEST, *heights, *audio, *([Preset.GIF] if fits else [])]
+
+
+def gif_size(info: dict[str, Any]) -> int | None:
+    duration = info.get("duration")
+    video = [f for f in info.get("formats") or [info] if f.get("vcodec") != "none"]
+    if not (duration and video):
+        return None
+    largest = max(video, key=lambda fmt: (fmt.get("width") or 0) * (fmt.get("height") or 0))
+    return gif.estimate(duration, largest.get("width"), largest.get("height"))
 
 
 def _shorter_side(fmt: dict[str, Any]) -> int:
@@ -179,6 +194,11 @@ def preset_sizes(items: list[dict[str, Any]], presets: list[Preset]) -> dict[Pre
     """Sizes of what each preset would download, left out where any stream has no size."""
     sizes = {}
     for preset in presets:
+        if preset is Preset.GIF:
+            gifs = [gif_size(item) for item in items]
+            if gifs and all(gifs):
+                sizes[preset] = sum(gifs)
+            continue
         with YoutubeDL(
             {"quiet": True, "no_warnings": True, "check_formats": False, **format_options(preset)}
         ) as ydl:

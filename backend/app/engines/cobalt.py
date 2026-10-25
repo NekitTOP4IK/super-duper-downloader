@@ -17,7 +17,9 @@ _QUALITY = {
     Preset.P720: "720",
     Preset.P480: "480",
     Preset.AUDIO: "max",
+    Preset.GIF: "480",
 }
+_MODES = {Preset.AUDIO: "audio", Preset.GIF: "mute"}
 
 _EXACT_CODES = {
     "service.unsupported": ErrorCode.UNSUPPORTED,
@@ -138,7 +140,7 @@ class CobaltEngine:
         body = {
             "url": url,
             "videoQuality": _QUALITY[preset],
-            "downloadMode": "audio" if preset is Preset.AUDIO else "auto",
+            "downloadMode": _MODES.get(preset, "auto"),
             "audioFormat": "best",
             "filenameStyle": "basic",
         }

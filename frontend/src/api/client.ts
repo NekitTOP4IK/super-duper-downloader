@@ -1,5 +1,5 @@
-export type Preset = "best" | "1080" | "720" | "480" | "audio";
-export const PRESETS: Preset[] = ["best", "1080", "720", "480", "audio"];
+export type Preset = "best" | "1080" | "720" | "480" | "audio" | "gif";
+export const PRESETS: Preset[] = ["best", "1080", "720", "480", "audio", "gif"];
 
 export type JobStatus = "queued" | "downloading" | "processing" | "expanded" | "done" | "failed";
 

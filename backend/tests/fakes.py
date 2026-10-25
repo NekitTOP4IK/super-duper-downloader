@@ -1,4 +1,21 @@
+import shutil
+import subprocess
+
+import pytest
+
 from app.models import FileInfo, JobStatus, MediaInfo, MediaKind, Preset, Progress
+
+needs_ffmpeg = pytest.mark.skipif(
+    not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="needs ffmpeg and ffprobe"
+)
+
+
+def make_video(path, size="1280x720", rate=30, duration=1):
+    source = f"testsrc=size={size}:rate={rate}:duration={duration}"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, str(path)], check=True
+    )
+    return path
 
 
 def _next(outcomes):

@@ -4,12 +4,23 @@ import logging
 import shutil
 from typing import Any
 
+from app import gif
 from app.core.config import Settings
 from app.core.errors import EngineError, ErrorCode
 from app.core.paths import job_dir
 from app.engines.base import DownloadOptions
 from app.engines.router import EngineRouter
-from app.models import Batch, FileInfo, Job, JobError, JobStatus, MediaInfo, MediaKind, Progress
+from app.models import (
+    Batch,
+    FileInfo,
+    Job,
+    JobError,
+    JobStatus,
+    MediaInfo,
+    MediaKind,
+    Preset,
+    Progress,
+)
 from app.queue import TaskQueue
 from app.store.redis_store import Store
 
@@ -130,6 +141,9 @@ async def _download(
     await store.save_job(job)
     async with ProgressReporter(store, job) as reporter:
         engine_name, paths = await router.download(job.url, opts, reporter)
+        if batch.preset is Preset.GIF:
+            reporter(Progress(stage="processing"))
+            paths = [await gif.convert(path) for path in paths]
     shutil.rmtree(dest / ".part", ignore_errors=True)
     job.engine = engine_name
     job.files = [FileInfo(name=path.name, size=path.stat().st_size) for path in paths]

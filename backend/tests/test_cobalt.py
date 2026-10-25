@@ -52,6 +52,13 @@ async def test_audio_preset_requests_audio_mode(tmp_path):
     assert seen[0]["downloadMode"] == "audio"
 
 
+async def test_gif_preset_requests_a_small_video_without_sound(tmp_path):
+    seen = []
+    engine = make_engine(TUNNEL, files={"/tunnel": b"V"}, seen=seen)
+    await engine.download("https://x.com/a", opts(tmp_path, Preset.GIF), lambda p: None)
+    assert (seen[0]["videoQuality"], seen[0]["downloadMode"]) == ("480", "mute")
+
+
 async def test_download_picker_saves_every_item(tmp_path):
     picker = {
         "status": "picker",
