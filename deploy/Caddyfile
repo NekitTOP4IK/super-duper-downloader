@@ -35,6 +35,9 @@
 		header @hashed Cache-Control "public, max-age=31536000, immutable"
 		header ?Cache-Control "no-cache"
 		@page path / /index.html
+		# A range would be cut from the template before it is filled in, so the page is always
+		# sent whole. Link preview bots, Facebook's among them, ask for a range.
+		request_header @page -Range
 		templates @page
 		# The page is written in the language the request asks for.
 		header @page Vary Accept-Language
