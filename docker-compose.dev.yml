@@ -12,6 +12,19 @@ x-backend: &backend
     - redis
     - cobalt
 
+# Workers open user-supplied URLs, so they only get the network the egress firewall guards.
+x-worker: &worker
+  <<: *backend
+  network_mode: service:egress
+  depends_on:
+    redis:
+      condition: service_started
+    cobalt:
+      condition: service_started
+    egress:
+      condition: service_healthy
+      restart: true
+
 services:
   api:
     <<: *backend
@@ -21,12 +34,28 @@ services:
 
   # arq --watch restarts the worker inside the same process, so edited modules would never load.
   worker:
-    <<: *backend
+    <<: *worker
     command: watchfiles --filter python "arq app.worker.main.DownloadWorker" app
 
   probe-worker:
-    <<: *backend
+    <<: *worker
     command: watchfiles --filter python "arq app.worker.main.ProbeWorker" app
+
+  egress:
+    build: ./deploy/egress
+    image: sdd-egress:dev
+    init: true
+    # Applies to this container's own network only, which the workers join.
+    cap_add:
+      - NET_ADMIN
+    environment:
+      EGRESS_ALLOW_CIDRS: ${EGRESS_ALLOW_CIDRS:-}
+      EGRESS_DENY_CIDRS: ${EGRESS_DENY_CIDRS:-}
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/ready"]
+      interval: 30s
+      start_period: 30s
+      start_interval: 1s
 
   redis:
     image: redis:8.0-alpine

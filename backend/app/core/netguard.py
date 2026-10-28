@@ -186,7 +186,8 @@ def install(
     Workers fetch user-supplied URLs, so without this anyone could make them read internal
     services (Redis, cobalt) or the cloud metadata endpoint. Checking at connect() time
     covers every Python HTTP stack in the process (httpx, urllib, requests inside yt-dlp),
-    every redirect hop and DNS rebinding. ffmpeg runs as a subprocess and is not covered.
+    every redirect hop and DNS rebinding. ffmpeg and curl_cffi connect outside Python and are
+    held back by the firewall in deploy/egress instead.
 
     egress_hosts and egress_networks are reachable even from untrusted() blocks: the
     outbound proxy, and networks of a resolver that hands out fake IPs (Clash or sing-box

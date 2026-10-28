@@ -49,6 +49,8 @@ jobs:
             context: backend
           - name: web
             context: frontend
+          - name: egress
+            context: deploy/egress
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4

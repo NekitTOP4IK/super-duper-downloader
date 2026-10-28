@@ -111,6 +111,7 @@ Everything lives in `.env`.
 | `SITE_ADDRESS` | `:80` | Address Caddy serves: `:80` for plain HTTP, or a domain for HTTPS |
 | `PROXY_URL` | empty | Proxy for yt-dlp and direct downloads, e.g. `socks5://host:1080` |
 | `EGRESS_ALLOW_CIDRS` | empty | Networks workers may reach although they look private, see below |
+| `EGRESS_DENY_CIDRS` | empty | Public networks workers must not reach either, such as the server's own address |
 | `MAX_DURATION_SEC` | `10800` | Longest media accepted |
 | `MAX_FILESIZE_MB` | `2048` | Largest file accepted |
 | `MAX_BATCH_URLS` | `50` | Links taken from one request |
@@ -144,10 +145,18 @@ most specific reason, such as "login required". Finished files are deleted after
 
 ## Security notes
 
-Workers open whatever URL a user pastes, so they refuse connections to private,
-loopback, link-local and other non-public addresses, including the cloud metadata
-endpoint. Redis and cobalt stay reachable for the service's own code, but not for
-anything a user URL leads to, redirects included. A few things are outside that guard:
+Workers open whatever URL a user pastes, so they cannot reach private, loopback,
+link-local and other non-public addresses, including the cloud metadata endpoint and the
+host they run on. Two layers enforce this:
+
+- The Python code checks every connection it opens. Redis and cobalt stay reachable for
+  the service's own code, but not for anything a user URL leads to, redirects included.
+- The workers run in the network of the `egress` container, whose firewall rejects the
+  same addresses for every process, so ffmpeg and curl_cffi, which connect outside
+  Python, are held back too. The container needs the `NET_ADMIN` capability, which
+  covers only its own network.
+
+What this does not cover:
 
 - **`EGRESS_ALLOW_CIDRS`.** Some proxies (Clash, sing-box in fake-ip mode) resolve
   every domain to `198.18.0.0/15`, which then looks private and gets blocked. Listing
@@ -155,12 +164,12 @@ anything a user URL leads to, redirects included. A few things are outside that 
   Only list networks that hold nothing of yours.
 - **`PROXY_URL`.** With a proxy, the guard only sees the connection to the proxy, and
   the proxy decides where requests go. Use one that cannot reach your internal network.
-- **ffmpeg.** When yt-dlp hands a stream to ffmpeg, ffmpeg connects on its own and is
-  not checked.
-- **Browser impersonation.** TikTok and some other sites only answer clients that look
-  like a browser, so yt-dlp sends those requests through curl_cffi, which connects
-  outside Python and is not checked either. Only extractors of specific sites do this,
-  for their own hosts, but curl follows up to five redirects from there on its own.
+  A proxy on a private address has to be listed in `EGRESS_ALLOW_CIDRS`.
+- **The stack's own network.** The firewall lets workers reach the other containers of
+  the stack, so ffmpeg and curl_cffi could send requests to Redis, cobalt, the API or
+  Caddy, which only the Python check keeps from user URLs.
+- **The server's public address.** It looks like any other site. If services on it trust
+  connections that come from the server itself, list it in `EGRESS_DENY_CIDRS`.
 
 ## Development
 
